@@ -1,9 +1,11 @@
-/* NEURAVPN · hero scene: faceted "neural core" + orbiting particle network.
+/* NEURAVPN · hero scene: faceted "neural core" + orbiting particle network,
+   styled as a pencil sketch on paper (like the tg-channel doodles): paper-toned
+   matcap shading, brown ink edges/lines, red crayon accent nodes.
    MeshMatcapMaterial with a procedurally drawn matcap only — no lights and
    no PMREM environment: real PBR shaders take 30+ seconds to compile on old
    integrated GPUs (Intel HD 4000) and freeze the page; matcap compiles
-   instantly and still reads as glossy tech. Particles are Points + static
-   LineSegments — the cheapest possible geometry. */
+   instantly. Particles are Points + static LineSegments — the cheapest
+   possible geometry. */
 import * as THREE from 'three';
 
 const canvas = document.getElementById('scene');
@@ -22,7 +24,7 @@ function init(canvas) {
   const camera = new THREE.PerspectiveCamera(38, 1, .1, 60);
   camera.position.set(0, 0, 9);
 
-  /* ── procedural matcap: violet→cyan glossy sphere shading ── */
+  /* ── procedural matcap: мягкая бумажно-карандашная тушёвка ── */
   function makeMatcap(top, mid, low, hl) {
     const c = document.createElement('canvas');
     c.width = c.height = 256;
@@ -34,34 +36,44 @@ function init(canvas) {
     g.fillStyle = grad;
     g.fillRect(0, 0, 256, 256);
     const rad = g.createRadialGradient(88, 70, 6, 88, 70, 120);
-    rad.addColorStop(0, `rgba(255,255,255,${hl})`);
-    rad.addColorStop(1, 'rgba(255,255,255,0)');
+    rad.addColorStop(0, `rgba(255,252,244,${hl})`);
+    rad.addColorStop(1, 'rgba(255,252,244,0)');
     g.fillStyle = rad;
     g.fillRect(0, 0, 256, 256);
-    const rim = g.createRadialGradient(128, 128, 92, 128, 128, 128);
-    rim.addColorStop(0, 'rgba(35,213,255,0)');
-    rim.addColorStop(1, 'rgba(35,213,255,.55)');
+    /* тёмный «прорисованный» край, как штриховка по контуру */
+    const rim = g.createRadialGradient(128, 128, 88, 128, 128, 128);
+    rim.addColorStop(0, 'rgba(75,47,29,0)');
+    rim.addColorStop(1, 'rgba(75,47,29,.5)');
     g.fillStyle = rim;
     g.fillRect(0, 0, 256, 256);
+    /* лёгкое зерно бумаги */
+    for (let i = 0; i < 900; i++) {
+      g.fillStyle = `rgba(75,47,29,${Math.random() * .06})`;
+      g.fillRect(Math.random() * 256, Math.random() * 256, 1.5, 1.5);
+    }
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     return tex;
   }
 
-  const coreCap  = makeMatcap('#c9bcff', '#5b45d6', '#0b1030', .95);
-  const darkCap  = makeMatcap('#5a6cff', '#1d2350', '#05070d', .5);
+  /* светлый «картон» для граней и тёмный «крафт» для деталей */
+  const coreCap  = makeMatcap('#f6efe0', '#dccdae', '#8f6f4e', .5);
+  const darkCap  = makeMatcap('#c9b294', '#a98d69', '#5f4630', .3);
 
-  /* ── glow sprite for particles ── */
-  function makeGlow(color) {
+  /* ── crayon dot sprite: неровная точка, как от воскового мелка ── */
+  function makeDot(color) {
     const c = document.createElement('canvas');
     c.width = c.height = 64;
     const g = c.getContext('2d');
-    const rad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-    rad.addColorStop(0, color);
-    rad.addColorStop(.35, color.replace('1)', '.5)'));
-    rad.addColorStop(1, 'rgba(0,0,0,0)');
-    g.fillStyle = rad;
-    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = color;
+    g.beginPath();
+    for (let a = 0; a <= Math.PI * 2 + .01; a += Math.PI / 14) {
+      const r = 22 + Math.sin(a * 5.3) * 3 + Math.cos(a * 3.1) * 2.5;
+      const x = 32 + Math.cos(a) * r, y = 32 + Math.sin(a) * r;
+      a === 0 ? g.moveTo(x, y) : g.lineTo(x, y);
+    }
+    g.closePath();
+    g.fill();
     return new THREE.CanvasTexture(c);
   }
 
@@ -77,7 +89,7 @@ function init(canvas) {
 
   const edges = new THREE.LineSegments(
     new THREE.EdgesGeometry(outer.geometry),
-    new THREE.LineBasicMaterial({ color: 0x23d5ff, transparent: true, opacity: .3, blending: THREE.AdditiveBlending, depthWrite: false })
+    new THREE.LineBasicMaterial({ color: 0x4b2f1d, transparent: true, opacity: .55, depthWrite: false })
   );
   edges.scale.setScalar(1.004);
   core.add(edges);
@@ -129,9 +141,9 @@ function init(canvas) {
   const ptsGeo = new THREE.BufferGeometry();
   ptsGeo.setAttribute('position', new THREE.BufferAttribute(pts, 3));
   const points = new THREE.Points(ptsGeo, new THREE.PointsMaterial({
-    size: .16, map: makeGlow('rgba(160,180,255,1)'), color: 0xaebbff,
-    transparent: true, opacity: .9, depthWrite: false,
-    blending: THREE.AdditiveBlending, sizeAttenuation: true,
+    size: .13, map: makeDot('rgba(75,47,29,1)'), color: 0xffffff,
+    transparent: true, opacity: .55, depthWrite: false,
+    alphaTest: .1, sizeAttenuation: true,
   }));
   shell.add(points);
 
@@ -147,8 +159,7 @@ function init(canvas) {
   const lineGeo = new THREE.BufferGeometry();
   lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(linePos, 3));
   const lines = new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({
-    color: 0x5b6cff, transparent: true, opacity: .16,
-    blending: THREE.AdditiveBlending, depthWrite: false,
+    color: 0x6b4a30, transparent: true, opacity: .3, depthWrite: false,
   }));
   shell.add(lines);
 
@@ -161,9 +172,9 @@ function init(canvas) {
   }
   accGeo.setAttribute('position', new THREE.BufferAttribute(accPos, 3));
   shell.add(new THREE.Points(accGeo, new THREE.PointsMaterial({
-    size: .34, map: makeGlow('rgba(35,213,255,1)'), color: 0x23d5ff,
-    transparent: true, opacity: .95, depthWrite: false,
-    blending: THREE.AdditiveBlending, sizeAttenuation: true,
+    size: .3, map: makeDot('rgba(163,35,24,1)'), color: 0xffffff,
+    transparent: true, opacity: .9, depthWrite: false,
+    alphaTest: .1, sizeAttenuation: true,
   })));
 
   /* ── layout: shift composition right on wide screens ── */
@@ -175,6 +186,7 @@ function init(canvas) {
   function layout() {
     const w = canvas.clientWidth || innerWidth;
     const h = canvas.clientHeight || innerHeight;
+    if (w < 2 || h < 2) return;   // panel mid-resize can report 0 — skip, heal later
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
@@ -210,6 +222,14 @@ function init(canvas) {
   const clock = new THREE.Clock();
   renderer.setAnimationLoop(() => {
     if (!inView || document.hidden) return;
+
+    /* self-heal after a degenerate resize (panel dragged to 0 width) */
+    const cw = canvas.clientWidth, ch = canvas.clientHeight;
+    if (cw > 1 && ch > 1 &&
+        (canvas.width !== Math.round(cw * DPR) || canvas.height !== Math.round(ch * DPR))) {
+      layout();
+    }
+
     const t = clock.getElapsedTime();
 
     mouse.x += (mouse.tx - mouse.x) * .045;
@@ -221,7 +241,7 @@ function init(canvas) {
     inner.rotation.z = t * .3;
     const pulse = 1 + Math.sin(t * 1.6) * .035;
     inner.scale.setScalar(pulse);
-    edges.material.opacity = .22 + Math.sin(t * 1.6) * .1;
+    edges.material.opacity = .48 + Math.sin(t * 1.6) * .12;
 
     for (const s of sats) {
       const a = t * .45 + s.userData.phase;
