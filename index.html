@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>neuravpn — подключение через Telegram: ключ за минуту</title>
+  <meta name="description" content="neuravpn — VPN с подключением через Telegram-бота: пробный доступ, +15 дней за друга, оплата картой или Stars. Приложения для Android и Windows.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c5cff'/%3E%3Cstop offset='1' stop-color='%2323d5ff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='%2306080f'/%3E%3Ctext x='32' y='46' font-family='Arial,sans-serif' font-weight='bold' font-size='40' fill='url(%23g)' text-anchor='middle'%3En%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css?v=1">
+</head>
+<body class="is-loading">
+
+  <!-- ══ preloader ══ -->
+  <div class="preloader" id="preloader" aria-hidden="true">
+    <div class="preloader__mark">neura<span>vpn</span></div>
+    <div class="preloader__bar"><i id="preloaderBar"></i></div>
+  </div>
+
+  <!-- ══ ambient background ══ -->
+  <div class="bg" aria-hidden="true">
+    <div class="bg__grid"></div>
+    <div class="bg__glow bg__glow--violet"></div>
+    <div class="bg__glow bg__glow--cyan"></div>
+  </div>
+
+  <!-- ══ header ══ -->
+  <header class="header" id="header">
+    <div class="header__inner">
+      <a class="wordmark" href="#top" data-lenis>neura<span>vpn</span></a>
+      <nav class="header__nav" aria-label="Основная навигация">
+        <a href="#perks" data-lenis>Преимущества</a>
+        <a href="#steps" data-lenis>Как подключиться</a>
+        <a href="#app" data-lenis>Приложение</a>
+        <a href="https://t.me/neuravpn_support" target="_blank" rel="noopener">Поддержка</a>
+      </nav>
+      <div class="header__actions">
+        <a class="btn btn--primary btn--sm" data-magnetic href="https://t.me/neuravpn_bot?start=site_signup" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M21.9 4.6 18.8 19c-.2 1-.8 1.3-1.7.8l-4.6-3.4-2.2 2.1c-.3.3-.5.5-.9.5l.3-4.6L18 6.9c.4-.3-.1-.5-.6-.2L7.1 13.2l-4.5-1.4c-1-.3-1-1 .2-1.4L20.6 3.2c.8-.3 1.5.2 1.3 1.4Z"/></svg>
+          Открыть бота
+        </a>
+        <button class="burger" id="burger" aria-label="Меню" aria-expanded="false">
+          <span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══ mobile menu ══ -->
+  <div class="menu" id="menu" aria-hidden="true">
+    <nav class="menu__nav">
+      <a href="#perks" data-lenis>Преимущества</a>
+      <a href="#steps" data-lenis>Как подключиться</a>
+      <a href="#app" data-lenis>Приложение</a>
+      <a href="https://t.me/neuravpn_support" target="_blank" rel="noopener">Поддержка</a>
+    </nav>
+    <a class="btn btn--primary" href="https://t.me/neuravpn_bot?start=site_signup" target="_blank" rel="noopener">Зарегистрироваться в Telegram</a>
+  </div>
+
+  <main id="top">
+
+    <!-- ══ hero ══ -->
+    <section class="hero" id="hero">
+      <canvas class="hero__canvas" id="scene" aria-hidden="true"></canvas>
+      <div class="hero__inner">
+        <p class="hero__kicker" data-hero><span class="dot"></span>VPN без лишних шагов</p>
+        <h1 class="hero__title">
+          <span class="line"><span data-hero-line>Подключите</span></span>
+          <span class="line"><span data-hero-line class="grad">neuravpn</span></span>
+          <span class="line"><span data-hero-line>через Telegram</span></span>
+        </h1>
+        <p class="hero__sub" data-hero>Бот создаёт аккаунт, проверяет бонусы и сразу выдаёт ключ — без почты и паролей.</p>
+        <div class="hero__cta" data-hero>
+          <a class="btn btn--primary btn--lg" data-magnetic href="https://t.me/neuravpn_bot?start=site_signup" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M21.9 4.6 18.8 19c-.2 1-.8 1.3-1.7.8l-4.6-3.4-2.2 2.1c-.3.3-.5.5-.9.5l.3-4.6L18 6.9c.4-.3-.1-.5-.6-.2L7.1 13.2l-4.5-1.4c-1-.3-1-1 .2-1.4L20.6 3.2c.8-.3 1.5.2 1.3 1.4Z"/></svg>
+            Зарегистрироваться в Telegram
+          </a>
+          <a class="btn btn--ghost btn--lg" data-magnetic href="#app" data-lenis>Скачать приложение</a>
+        </div>
+        <ul class="hero__facts" data-hero>
+          <li><b>Android</b><span>и Windows</span></li>
+          <li class="sep"></li>
+          <li><b>Ключ</b><span>сразу в боте</span></li>
+          <li class="sep"></li>
+          <li><b>Карта / Stars</b><span>способы оплаты</span></li>
+        </ul>
+      </div>
+      <a class="hero__scroll" href="#perks" data-lenis aria-label="Листайте вниз">
+        <span class="hero__scroll-line"><i></i></span>
+        листайте
+      </a>
+    </section>
+
+    <!-- ══ marquee ══ -->
+    <div class="marquee" aria-hidden="true">
+      <div class="marquee__track" id="marqueeTrack">
+        <div class="marquee__group">
+          <span>пробный доступ</span><i>◆</i>
+          <span>+15 дней за друга</span><i>◆</i>
+          <span>оплата картой или Stars</span><i>◆</i>
+          <span>Android</span><i>◆</i>
+          <span>Windows</span><i>◆</i>
+          <span>ключ за минуту</span><i>◆</i>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ perks ══ -->
+    <section class="section perks" id="perks">
+      <div class="section__head" data-reveal>
+        <p class="section__kicker">бонусы</p>
+        <h2 class="section__title">Начните бесплатно —<br>и получайте <span class="grad">дни в подарок</span></h2>
+      </div>
+      <div class="perks__grid">
+        <article class="card" data-reveal data-tilt>
+          <div class="card__icon">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+          </div>
+          <h3>Пробный доступ</h3>
+          <p>Не нужно платить, чтобы попробовать: бот выдаёт тестовый период сразу после регистрации.</p>
+          <span class="card__num">01</span>
+        </article>
+        <article class="card card--accent" data-reveal data-tilt>
+          <div class="card__icon">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+          </div>
+          <h3><span class="card__big" data-counter="15">+0</span> дней за друга</h3>
+          <p>Поделитесь ссылкой из бота — за каждого приглашённого друга к вашей подписке добавится 15 дней.</p>
+          <span class="card__num">02</span>
+        </article>
+        <article class="card" data-reveal data-tilt>
+          <div class="card__icon">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/><path d="M6 15h4"/></svg>
+          </div>
+          <h3>Оплата картой или Stars</h3>
+          <p>Продлевайте подписку так, как удобно: банковской картой или Telegram Stars прямо в боте.</p>
+          <span class="card__num">03</span>
+        </article>
+      </div>
+    </section>
+
+    <!-- ══ steps ══ -->
+    <section class="section steps" id="steps">
+      <div class="section__head" data-reveal>
+        <p class="section__kicker">как подключиться</p>
+        <h2 class="section__title">Три шага в боте —<br>и <span class="grad">вы в сети</span></h2>
+      </div>
+      <div class="steps__wrap">
+        <div class="steps__rail" aria-hidden="true"><i id="stepsProgress"></i></div>
+        <ol class="steps__list">
+          <li class="step" data-reveal>
+            <span class="step__node"><b>1</b></span>
+            <div class="step__body">
+              <p class="step__cmd">/start</p>
+              <h3>Старт и проверка канала</h3>
+              <p>Откройте бота, нажмите <b>/start</b> — он проверит подписку на канал и создаст аккаунт.</p>
+            </div>
+          </li>
+          <li class="step" data-reveal>
+            <span class="step__node"><b>2</b></span>
+            <div class="step__body">
+              <p class="step__cmd">тариф</p>
+              <h3>Пробный доступ или тариф</h3>
+              <p>Выберите пробный период, чтобы протестировать сервис, или сразу подходящий тариф.</p>
+            </div>
+          </li>
+          <li class="step" data-reveal>
+            <span class="step__node"><b>3</b></span>
+            <div class="step__body">
+              <p class="step__cmd">ключ</p>
+              <h3>Ключ и ссылка в кабинете</h3>
+              <p>Бот пришлёт ключ доступа и ссылку на личный кабинет — останется вставить ключ в приложение.</p>
+            </div>
+          </li>
+        </ol>
+        <a class="btn btn--primary btn--lg steps__cta" data-magnetic data-reveal href="https://t.me/neuravpn_bot?start=site_signup" target="_blank" rel="noopener">Начать в Telegram</a>
+      </div>
+    </section>
+
+    <!-- ══ app ══ -->
+    <section class="section app" id="app">
+      <div class="section__head" data-reveal>
+        <p class="section__kicker">приложение</p>
+        <h2 class="section__title">Один ключ —<br><span class="grad">все устройства</span></h2>
+        <p class="section__sub">Вставьте ключ из бота в приложение neuravpn — и подключайтесь одной кнопкой.</p>
+      </div>
+
+      <div class="app__stage">
+        <!-- windows mockup -->
+        <div class="mock mock--win" data-reveal data-float="1">
+          <div class="mock__bar"><i></i><i></i><i></i><span>neuravpn · Windows</span></div>
+          <div class="mock__body">
+            <div class="mock__power" id="mockPower">
+              <span class="ring ring--a"></span>
+              <span class="ring ring--b"></span>
+              <button class="power" aria-hidden="true" tabindex="-1">
+                <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v9"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg>
+              </button>
+            </div>
+            <p class="mock__status"><span class="dot dot--on"></span>Подключено</p>
+            <div class="mock__rows">
+              <div class="mock__row"><span>Smart split tunneling</span><i class="switch switch--on"></i></div>
+              <div class="mock__row"><span>Автоподключение</span><i class="switch switch--on"></i></div>
+              <div class="mock__row"><span>Автообновление</span><i class="switch switch--on"></i></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- phone mockup -->
+        <div class="mock mock--phone" data-reveal data-float="2">
+          <div class="mock__notch"></div>
+          <div class="mock__body">
+            <p class="mock__label">ключ доступа</p>
+            <div class="mock__key"><span id="mockKey">vless://•••</span><i class="blink"></i></div>
+            <div class="mock__connect"><span></span>Подключиться</div>
+            <p class="mock__hint">ключ из бота → импорт профиля</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="app__grid">
+        <div class="app__how" data-reveal>
+          <h3>Импорт профиля</h3>
+          <ol>
+            <li><span>1</span>Получите ключ у бота в Telegram</li>
+            <li><span>2</span>Установите приложение и откройте его</li>
+            <li><span>3</span>Вставьте ключ — конфигурация добавится сама</li>
+          </ol>
+        </div>
+        <div class="app__downloads" data-reveal>
+          <a class="dl" data-magnetic href="https://github.com/Asort97/neuravpn-client/releases/latest" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" aria-hidden="true"><path d="M17.5 8.1 19 5.4a.3.3 0 1 0-.5-.3l-1.5 2.7a9.4 9.4 0 0 0-6 0L9.5 5.1a.3.3 0 1 0-.5.3l1.5 2.7A8 8 0 0 0 4 15h16a8 8 0 0 0-2.5-6.9ZM8.5 12.3a.8.8 0 1 1 0-1.6.8.8 0 0 1 0 1.6Zm7 0a.8.8 0 1 1 0-1.6.8.8 0 0 1 0 1.6Z"/></svg>
+            <span class="dl__text"><b>Скачать для Android</b><span>APK · arm64 · v1.0.5</span></span>
+            <i class="dl__arrow">↓</i>
+          </a>
+          <a class="dl" data-magnetic href="https://github.com/Asort97/neuravpn-client/releases/latest" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10.5 4.4v7.1H3V5.5ZM3 12.5h7.5v7.1L3 18.5v-6ZM11.5 4.2 21 3v8.5h-9.5V4.2ZM11.5 12.5H21V21l-9.5-1.3v-7.2Z"/></svg>
+            <span class="dl__text"><b>Скачать для Windows</b><span>установщик или portable · v1.0.6</span></span>
+            <i class="dl__arrow">↓</i>
+          </a>
+          <ul class="app__tech" aria-label="Технологии">
+            <li>протокол VLESS</li>
+            <li>Xray-core · Windows</li>
+            <li>sing-box · Android</li>
+          </ul>
+          <p class="app__note">Открытый клиент — исходный код и все версии на <a href="https://github.com/Asort97/neuravpn-client/releases" target="_blank" rel="noopener">GitHub</a>.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ cta ══ -->
+    <section class="section cta" id="cta">
+      <div class="cta__card" data-reveal>
+        <div class="cta__glow" aria-hidden="true"></div>
+        <h2 class="cta__title">Ключ выдаётся<br><span class="grad">за минуту</span></h2>
+        <p class="cta__sub">Регистрация, бонусы и оплата — всё внутри Telegram.</p>
+        <div class="cta__actions">
+          <a class="btn btn--primary btn--lg" data-magnetic href="https://t.me/neuravpn_bot?start=site_signup" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M21.9 4.6 18.8 19c-.2 1-.8 1.3-1.7.8l-4.6-3.4-2.2 2.1c-.3.3-.5.5-.9.5l.3-4.6L18 6.9c.4-.3-.1-.5-.6-.2L7.1 13.2l-4.5-1.4c-1-.3-1-1 .2-1.4L20.6 3.2c.8-.3 1.5.2 1.3 1.4Z"/></svg>
+            Зарегистрироваться в Telegram
+          </a>
+          <a class="btn btn--ghost btn--lg" data-magnetic href="https://t.me/neuravpn_support" target="_blank" rel="noopener">Написать в поддержку</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ══ footer ══ -->
+  <footer class="footer">
+    <div class="footer__inner">
+      <div class="footer__brand">
+        <a class="wordmark wordmark--lg" href="#top" data-lenis>neura<span>vpn</span></a>
+        <p>Подключение и оплата — через Telegram.<br>Приложения для Android и Windows.</p>
+      </div>
+      <nav class="footer__col" aria-label="Сервис">
+        <b>Сервис</b>
+        <a href="https://t.me/neuravpn_bot?start=site_signup" target="_blank" rel="noopener">Бот в Telegram</a>
+        <a href="#app" data-lenis>Приложение</a>
+        <a href="https://github.com/Asort97/neuravpn-client/releases" target="_blank" rel="noopener">Все версии</a>
+      </nav>
+      <nav class="footer__col" aria-label="Помощь">
+        <b>Помощь</b>
+        <a href="https://t.me/neuravpn_support" target="_blank" rel="noopener">Поддержка</a>
+        <a href="https://github.com/Asort97/neuravpn-client/blob/master/PRIVACY_POLICY.md" target="_blank" rel="noopener">Privacy Policy</a>
+      </nav>
+    </div>
+    <div class="footer__bottom">
+      <span>© <span id="year">2026</span> neuravpn</span>
+      <span class="footer__up"><a href="#top" data-lenis>наверх ↑</a></span>
+    </div>
+  </footer>
+
+  <div class="noise" aria-hidden="true"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lenis@1.1.14/dist/lenis.min.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+    }
+  }
+  </script>
+  <script type="module" src="js/scene.js?v=1"></script>
+  <script src="js/main.js?v=1" defer></script>
+</body>
+</html>
