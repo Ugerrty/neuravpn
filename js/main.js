@@ -98,6 +98,15 @@
     tl.from('[data-hero-line]', { yPercent: 110, duration: 1.05, stagger: .12 }, .1)
       .from('[data-hero]', { y: 30, autoAlpha: 0, duration: .9, stagger: .1 }, .35)
       .from('.hero__scroll', { autoAlpha: 0, y: 14, duration: .8 }, '-=.4');
+
+    /* красный обвод «через Telegram» рисуется от руки после появления строк */
+    var scribble = document.getElementById('scribblePath');
+    if (scribble && scribble.getTotalLength) {
+      var len = scribble.getTotalLength();
+      gsap.set(scribble, { strokeDasharray: len, strokeDashoffset: len });
+      tl.set('.hero__title .line', { overflow: 'visible' }, 1.05)
+        .to(scribble, { strokeDashoffset: 0, duration: 1.1, ease: 'power2.inOut' }, 1.15);
+    }
   }
 
   if (!hasGsap || reduceMotion) {
@@ -141,12 +150,32 @@
     });
   }
 
-  /* ── marquee: seamless loop (group duplicated in JS) ── */
+  /* ── scroll progress: красный маркер заполняется по мере чтения ── */
+  var prog = document.getElementById('scrollProgress');
+  if (prog) {
+    gsap.to(prog, { scaleX: 1, ease: 'none', scrollTrigger: { start: 0, end: 'max', scrub: .3 } });
+  }
+
+  /* ── бумажный самолётик летит по пунктиру, пока листаешь hero ── */
+  if (typeof MotionPathPlugin !== 'undefined' && document.getElementById('paperPlane')) {
+    gsap.registerPlugin(MotionPathPlugin);
+    gsap.set('#paperPlane', { transformOrigin: '50% 50%' });
+    gsap.to('#paperPlane', {
+      motionPath: { path: '#flightPath', align: '#flightPath', alignOrigin: [.5, .5], autoRotate: true },
+      ease: 'none',
+      scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom 25%', scrub: .6 },
+    });
+  }
+
+  /* ── marquee: seamless loop (group duplicated in JS), пауза под курсором ── */
   var track = document.getElementById('marqueeTrack');
   if (track) {
     var group = track.querySelector('.marquee__group');
     for (var i = 0; i < 3; i++) track.appendChild(group.cloneNode(true));
-    gsap.to(track, { xPercent: -25, duration: 22, ease: 'none', repeat: -1 });
+    var marqueeTween = gsap.to(track, { xPercent: -25, duration: 22, ease: 'none', repeat: -1 });
+    var marquee = track.parentElement;
+    marquee.addEventListener('mouseenter', function () { gsap.to(marqueeTween, { timeScale: .12, duration: .5 }); });
+    marquee.addEventListener('mouseleave', function () { gsap.to(marqueeTween, { timeScale: 1, duration: .5 }); });
   }
 
   /* ── app mockups: gentle float + scroll parallax ── */
@@ -207,6 +236,58 @@
         qy((e.clientY - r.top - r.height / 2) * .35);
       });
       btn.addEventListener('pointerleave', function () { qx(0); qy(0); });
+    });
+
+    /* ── чернильный след за курсором: тонкая линия, тающая за полсекунды ── */
+    var ink = document.createElement('canvas');
+    ink.className = 'ink-canvas';
+    document.body.appendChild(ink);
+    var ictx = ink.getContext('2d');
+    var trail = [];
+    var LIFE = 550;
+    function sizeInk() { ink.width = innerWidth; ink.height = innerHeight; }
+    sizeInk();
+    addEventListener('resize', sizeInk);
+    addEventListener('pointermove', function (e) {
+      trail.push({ x: e.clientX, y: e.clientY, t: performance.now() });
+      if (trail.length > 40) trail.shift();
+    }, { passive: true });
+    (function drawInk() {
+      requestAnimationFrame(drawInk);
+      var now = performance.now();
+      while (trail.length && now - trail[0].t > LIFE) trail.shift();
+      ictx.clearRect(0, 0, ink.width, ink.height);
+      ictx.lineCap = 'round';
+      for (var i = 1; i < trail.length; i++) {
+        var a = trail[i - 1], b = trail[i];
+        var fade = 1 - (now - b.t) / LIFE;
+        ictx.strokeStyle = 'rgba(75,47,29,' + (.3 * fade).toFixed(3) + ')';
+        ictx.lineWidth = 2.4 * fade + .4;
+        ictx.beginPath();
+        ictx.moveTo(a.x, a.y);
+        ictx.lineTo(b.x, b.y);
+        ictx.stroke();
+      }
+    })();
+
+    /* ── клякса по клику ── */
+    document.addEventListener('pointerdown', function (e) {
+      if (e.button > 0) return;
+      for (var i = 0; i < 3; i++) {
+        var s = document.createElement('i');
+        s.className = i ? 'splat splat--drop' : 'splat';
+        document.body.appendChild(s);
+        var dx = i ? (Math.random() - .5) * 52 : 0;
+        var dy = i ? (Math.random() - .5) * 52 : 0;
+        gsap.fromTo(s,
+          { x: e.clientX - 7, y: e.clientY - 7, scale: .4, opacity: .8 },
+          {
+            x: e.clientX - 7 + dx, y: e.clientY - 7 + dy,
+            scale: i ? .9 : 1.7, opacity: 0,
+            duration: .55, ease: 'power2.out',
+            onComplete: (function (el) { return function () { el.remove(); }; })(s),
+          });
+      }
     });
   }
 

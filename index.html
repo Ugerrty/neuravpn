@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Neucha&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=2">
+  <link rel="stylesheet" href="css/style.css?v=3">
 </head>
 <body class="is-loading">
 
@@ -25,6 +25,9 @@
     <div class="bg__glow bg__glow--violet"></div>
     <div class="bg__glow bg__glow--cyan"></div>
   </div>
+
+  <!-- ══ scroll progress: красный маркер ══ -->
+  <div class="scroll-progress" id="scrollProgress" aria-hidden="true"></div>
 
   <!-- ══ header ══ -->
   <header class="header" id="header">
@@ -64,12 +67,21 @@
     <!-- ══ hero ══ -->
     <section class="hero" id="hero">
       <canvas class="hero__canvas" id="scene" aria-hidden="true"></canvas>
+      <!-- бумажный самолётик летит по пунктиру при скролле -->
+      <svg class="hero__flight" viewBox="0 0 1200 700" aria-hidden="true">
+        <path id="flightPath" d="M-60,170 C240,60 430,300 640,235 C850,170 930,380 1260,250" fill="none" stroke="currentColor" stroke-width="2.5" stroke-dasharray="2 14" stroke-linecap="round"/>
+        <g id="paperPlane">
+          <path d="M-17,-8 L17,2 L-11,10 Z" fill="#f0e8d9" stroke="#4b2f1d" stroke-width="2.4" stroke-linejoin="round"/>
+          <path d="M-11,10 L-7,17 L-2,8" fill="#dcc9a3" stroke="#4b2f1d" stroke-width="2.4" stroke-linejoin="round"/>
+          <path d="M-17,-8 L-2,8" stroke="#4b2f1d" stroke-width="2"/>
+        </g>
+      </svg>
       <div class="hero__inner">
         <p class="hero__kicker" data-hero><span class="dot"></span>VPN без лишних шагов</p>
         <h1 class="hero__title">
           <span class="line"><span data-hero-line>Подключите</span></span>
           <span class="line"><span data-hero-line class="grad">neuravpn</span></span>
-          <span class="line"><span data-hero-line>через Telegram</span></span>
+          <span class="line"><span data-hero-line class="circled">через Telegram<svg class="scribble" viewBox="0 0 320 100" preserveAspectRatio="none" aria-hidden="true"><path id="scribblePath" d="M22,54 C28,14 290,6 302,40 C312,72 66,94 26,66 C8,52 70,20 176,13" fill="none"/></svg></span></span>
         </h1>
         <p class="hero__sub" data-hero>Бот создаёт аккаунт, проверяет бонусы и сразу выдаёт ключ — без почты и паролей.</p>
         <div class="hero__cta" data-hero>
@@ -296,6 +308,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/MotionPathPlugin.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/lenis@1.1.14/dist/lenis.min.js"></script>
   <script type="importmap">
   {
@@ -304,7 +317,7 @@
     }
   }
   </script>
-  <script type="module" src="js/scene.js?v=2"></script>
-  <script src="js/main.js?v=2" defer></script>
+  <script type="module" src="js/scene.js?v=3"></script>
+  <script src="js/main.js?v=3" defer></script>
 </body>
 </html>

@@ -24,31 +24,59 @@ function init(canvas) {
   const camera = new THREE.PerspectiveCamera(38, 1, .1, 60);
   camera.position.set(0, 0, 9);
 
-  /* ── procedural matcap: мягкая бумажно-карандашная тушёвка ── */
-  function makeMatcap(top, mid, low, hl) {
+  /* ── watercolor matcap: слоистые акварельные заливки.
+     Каждое «пятно» — светлая середина и тёмный ободок (пигмент стекает
+     к краю мазка), сверху свет, по силуэту — тёмная лужица, плюс
+     зернистость бумаги. Так шейдинг шара читается как акварель. ── */
+  function makeWatercolor(base, washes, rimColor, rimAlpha) {
     const c = document.createElement('canvas');
     c.width = c.height = 256;
     const g = c.getContext('2d');
-    const grad = g.createLinearGradient(30, 0, 226, 256);
-    grad.addColorStop(0, top);
-    grad.addColorStop(.5, mid);
-    grad.addColorStop(1, low);
-    g.fillStyle = grad;
+    g.fillStyle = base;
     g.fillRect(0, 0, 256, 256);
-    const rad = g.createRadialGradient(88, 70, 6, 88, 70, 120);
-    rad.addColorStop(0, `rgba(255,252,244,${hl})`);
-    rad.addColorStop(1, 'rgba(255,252,244,0)');
-    g.fillStyle = rad;
+
+    /* свет сверху-слева — почти сухая бумага */
+    const light = g.createRadialGradient(86, 70, 8, 86, 70, 150);
+    light.addColorStop(0, 'rgba(252,248,238,.9)');
+    light.addColorStop(1, 'rgba(252,248,238,0)');
+    g.fillStyle = light;
     g.fillRect(0, 0, 256, 256);
-    /* тёмный «прорисованный» край, как штриховка по контуру */
-    const rim = g.createRadialGradient(128, 128, 88, 128, 128, 128);
-    rim.addColorStop(0, 'rgba(75,47,29,0)');
-    rim.addColorStop(1, 'rgba(75,47,29,.5)');
+
+    /* мазки: [x, y, r, stretch, angle, светлый, тёмный, alpha] */
+    for (const [x, y, r, st, ang, colMid, colEdge, a] of washes) {
+      g.save();
+      g.translate(x, y);
+      g.rotate(ang);
+      g.scale(1, st);
+      const wash = g.createRadialGradient(0, 0, r * .1, 0, 0, r);
+      wash.addColorStop(0, hexA(colMid, a * .5));
+      wash.addColorStop(.62, hexA(colMid, a * .8));
+      wash.addColorStop(.86, hexA(colEdge, a));       /* тёмный ободок */
+      wash.addColorStop(1, hexA(colEdge, 0));
+      g.fillStyle = wash;
+      g.beginPath();
+      /* неровный контур мазка */
+      for (let t = 0; t <= Math.PI * 2 + .01; t += Math.PI / 16) {
+        const rr = r * (1 + Math.sin(t * 3.2 + x) * .08 + Math.cos(t * 5.1 + y) * .05);
+        const px = Math.cos(t) * rr, py = Math.sin(t) * rr;
+        t === 0 ? g.moveTo(px, py) : g.lineTo(px, py);
+      }
+      g.closePath();
+      g.fill();
+      g.restore();
+    }
+
+    /* тёмная лужица пигмента по силуэту сферы */
+    const rim = g.createRadialGradient(128, 128, 84, 128, 128, 128);
+    rim.addColorStop(0, hexA(rimColor, 0));
+    rim.addColorStop(.75, hexA(rimColor, rimAlpha * .45));
+    rim.addColorStop(1, hexA(rimColor, rimAlpha));
     g.fillStyle = rim;
     g.fillRect(0, 0, 256, 256);
-    /* лёгкое зерно бумаги */
-    for (let i = 0; i < 900; i++) {
-      g.fillStyle = `rgba(75,47,29,${Math.random() * .06})`;
+
+    /* грануляция — зерно бумаги */
+    for (let i = 0; i < 1500; i++) {
+      g.fillStyle = `rgba(75,47,29,${Math.random() * .055})`;
       g.fillRect(Math.random() * 256, Math.random() * 256, 1.5, 1.5);
     }
     const tex = new THREE.CanvasTexture(c);
@@ -56,9 +84,31 @@ function init(canvas) {
     return tex;
   }
 
-  /* светлый «картон» для граней и тёмный «крафт» для деталей */
-  const coreCap  = makeMatcap('#f6efe0', '#dccdae', '#8f6f4e', .5);
-  const darkCap  = makeMatcap('#c9b294', '#a98d69', '#5f4630', .3);
+  function hexA(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${Math.max(0, Math.min(1, a))})`;
+  }
+
+  /* светлая сепия для внешнего шара, тёмный крафт для деталей,
+     терракотово-красная — акцент на спутниках */
+  const coreCap = makeWatercolor('#f3ecdc', [
+    [150, 96, 74, .8, .5,  '#d9c09a', '#8a6844', .5],
+    [82, 150, 60, 1.1, -.4, '#c8a97e', '#7a5535', .55],
+    [190, 178, 66, .9, .9,  '#b3906a', '#5f4426', .6],
+    [70, 60, 44, .85, .2,   '#e2cfae', '#a07c52', .4],
+    [176, 44, 34, 1, -.7,   '#c96a5a', '#a32318', .16],
+  ], '#4b2f1d', .5);
+
+  const darkCap = makeWatercolor('#c2ab8c', [
+    [140, 90, 70, .9, .4,  '#a98d69', '#6f5236', .6],
+    [90, 168, 62, 1.05, -.5, '#8a6a4f', '#54371f', .65],
+    [196, 170, 48, .8, .8, '#77573b', '#3f2814', .55],
+  ], '#3a2413', .6);
+
+  const redCap = makeWatercolor('#e6c9ba', [
+    [140, 96, 72, .9, .4,  '#c0533f', '#8e1f12', .6],
+    [92, 162, 58, 1, -.5,  '#a83a28', '#6e150a', .6],
+  ], '#5c150c', .55);
 
   /* ── crayon dot sprite: неровная точка, как от воскового мелка ── */
   function makeDot(color) {
@@ -100,6 +150,26 @@ function init(canvas) {
   );
   core.add(inner);
 
+  /* органическое «дыхание» формы: вершины плавно плывут по радиусу.
+     Смещение — функция от координаты вершины, поэтому дублированные
+     вершины (non-indexed geometry) двигаются одинаково и грани не рвутся;
+     та же функция для EdgesGeometry держит чернильный контур на месте. */
+  function makeWobbler(geo) {
+    const pos = geo.getAttribute('position');
+    const base = pos.array.slice();
+    return (t) => {
+      const a = pos.array;
+      for (let i = 0; i < a.length; i += 3) {
+        const x = base[i], y = base[i + 1], z = base[i + 2];
+        const s = 1 + Math.sin(t * 1.1 + (x * 2.1 + y * 1.7 + z * 2.6) * 2) * .045;
+        a[i] = x * s; a[i + 1] = y * s; a[i + 2] = z * s;
+      }
+      pos.needsUpdate = true;
+    };
+  }
+  const wobbleOuter = makeWobbler(outer.geometry);
+  const wobbleEdges = makeWobbler(edges.geometry);
+
   /* orbit ring */
   const ring = new THREE.Mesh(
     new THREE.TorusGeometry(2.45, .018, 8, 120),
@@ -114,7 +184,7 @@ function init(canvas) {
   for (let i = 0; i < 3; i++) {
     const s = new THREE.Mesh(
       new THREE.TetrahedronGeometry(.13, 0),
-      new THREE.MeshMatcapMaterial({ matcap: coreCap, flatShading: true })
+      new THREE.MeshMatcapMaterial({ matcap: redCap, flatShading: true })
     );
     s.userData.phase = (i / 3) * Math.PI * 2;
     core.add(s);
@@ -242,6 +312,10 @@ function init(canvas) {
     const pulse = 1 + Math.sin(t * 1.6) * .035;
     inner.scale.setScalar(pulse);
     edges.material.opacity = .48 + Math.sin(t * 1.6) * .12;
+
+    wobbleOuter(t);
+    wobbleEdges(t);
+    outer.geometry.computeVertexNormals();
 
     for (const s of sats) {
       const a = t * .45 + s.userData.phase;

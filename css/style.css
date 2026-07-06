@@ -119,6 +119,26 @@ body.is-loading { overflow: hidden; }
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
+/* ── scroll progress: красный маркер сверху ── */
+.scroll-progress {
+  position: fixed; top: 0; left: 0; right: 0; height: 5px; z-index: 110;
+  background: var(--red);
+  transform-origin: left; transform: scaleX(0);
+  border-radius: 0 4px 4px 0;
+  opacity: .85;
+  pointer-events: none;
+}
+
+/* ── чернильный след за курсором и кляксы по клику ── */
+.ink-canvas { position: fixed; inset: 0; z-index: 95; pointer-events: none; }
+.splat {
+  position: fixed; left: 0; top: 0; z-index: 96; pointer-events: none;
+  width: 14px; height: 14px;
+  border-radius: 47% 53% 44% 56% / 58% 44% 56% 42%;
+  background: rgba(75, 47, 29, .4);
+}
+.splat--drop { width: 6px; height: 6px; border-radius: 54% 46% 58% 42%; }
+
 /* ── wordmark ── */
 .wordmark {
   font-family: var(--font-d); font-weight: 700; font-size: 30px; letter-spacing: .01em;
@@ -210,8 +230,8 @@ body.is-loading { overflow: hidden; }
   box-shadow: 3px 4px 0 rgba(75, 47, 29, .25);
 }
 .btn--primary:hover {
-  transform: rotate(-1deg) translateY(-2px);
   box-shadow: 5px 6px 0 rgba(75, 47, 29, .3);
+  animation: sketchJitter .8s steps(2, end) infinite;
 }
 .btn--ghost {
   border: 2.5px solid var(--ink); color: var(--ink);
@@ -219,8 +239,19 @@ body.is-loading { overflow: hidden; }
   box-shadow: 3px 4px 0 rgba(75, 47, 29, .15);
 }
 .btn--ghost:hover {
-  transform: rotate(1deg) translateY(-2px);
   background: rgba(75, 47, 29, .06);
+  animation: sketchJitter .8s steps(2, end) infinite reverse;
+}
+/* кнопку будто перерисовывают от руки два раза в секунду */
+@keyframes sketchJitter {
+  0%, 100% {
+    border-radius: var(--wob-pill);
+    transform: rotate(-.8deg) translateY(-2px);
+  }
+  50% {
+    border-radius: 32px 26px 34px 24px / 26px 34px 24px 32px;
+    transform: rotate(.5deg) translateY(-3px);
+  }
 }
 
 /* ── hero ── */
@@ -232,6 +263,11 @@ body.is-loading { overflow: hidden; }
 .hero__canvas {
   position: absolute; inset: 0; width: 100%; height: 100%;
   display: block;
+}
+.hero__flight {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  color: var(--ink-soft); opacity: .55;
+  pointer-events: none; z-index: 1;
 }
 .hero__inner {
   position: relative; z-index: 2;
@@ -264,6 +300,15 @@ body.is-loading { overflow: hidden; }
 }
 .hero__title .line { display: block; overflow: hidden; padding-bottom: .1em; margin-bottom: -.06em; }
 .hero__title .line > span { display: inline-block; }
+.circled { position: relative; }
+.scribble {
+  position: absolute; left: -5%; top: -12%; width: 110%; height: 126%;
+  overflow: visible; pointer-events: none;
+}
+.scribble path {
+  stroke: var(--red); stroke-width: 4.5; stroke-linecap: round;
+  opacity: .85;
+}
 .hero__title .grad {
   /* красная волнистая линия под словом, как маркером */
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='12' viewBox='0 0 120 12'%3E%3Cpath d='M2 8 Q 16 2, 30 7 T 60 7 T 90 6 T 118 8' fill='none' stroke='%23a32318' stroke-width='3.5' stroke-linecap='round'/%3E%3C/svg%3E");
@@ -341,6 +386,13 @@ body.is-loading { overflow: hidden; }
   font-family: var(--font-d); font-weight: 700;
   font-size: clamp(42px, 6.2vw, 76px); line-height: 1.02;
 }
+.section__title .grad, .cta__title .grad {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='12' viewBox='0 0 120 12'%3E%3Cpath d='M2 8 Q 16 2, 30 7 T 60 7 T 90 6 T 118 8' fill='none' stroke='%23a32318' stroke-width='3.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-position: 0 100%;
+  background-size: 120px 12px;
+  padding-bottom: .1em;
+}
 .section__sub { color: var(--ink-soft); margin-top: 16px; max-width: 560px; font-size: 21px; }
 
 /* ── perks: листы из скетчбука ── */
@@ -348,7 +400,7 @@ body.is-loading { overflow: hidden; }
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px;
 }
 .card {
-  position: relative; overflow: hidden;
+  position: relative; overflow: visible;
   background: var(--sheet);
   border: 2.5px solid var(--ink); border-radius: var(--wob-md);
   padding: 34px 30px 46px;
@@ -356,6 +408,18 @@ body.is-loading { overflow: hidden; }
   transition: transform .35s var(--ease), box-shadow .35s;
   will-change: transform;
 }
+/* полоска малярного скотча — листы будто приклеены к странице */
+.card::after {
+  content: ""; position: absolute; top: -14px; left: 50%;
+  width: 104px; height: 28px;
+  transform: translateX(-50%) rotate(-4deg);
+  background: rgba(231, 220, 196, .88);
+  border: 1.5px solid rgba(75, 47, 29, .18);
+  border-radius: 3px 6px 4px 5px;
+  box-shadow: 1px 2px 0 rgba(75, 47, 29, .08);
+}
+.perks__grid .card:nth-child(2)::after { transform: translateX(-50%) rotate(3deg); }
+.perks__grid .card:nth-child(3)::after { transform: translateX(-50%) rotate(-1.5deg); width: 88px; }
 .perks__grid .card:nth-child(1) { transform: rotate(-.8deg); }
 .perks__grid .card:nth-child(2) { transform: rotate(.6deg); }
 .perks__grid .card:nth-child(3) { transform: rotate(-.4deg); }
@@ -708,6 +772,8 @@ body.is-loading { overflow: hidden; }
   .cta__actions .btn { width: 100%; }
   .hero__cta .btn { width: 100%; }
   .hero__scroll { display: none; }
+  .hero__flight { display: none; }
+  .scroll-progress { height: 4px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
