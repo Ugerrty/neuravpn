@@ -36,6 +36,16 @@ while ($listener.IsListening) {
   $ctx = $listener.GetContext()
   try {
     $path = [System.Uri]::UnescapeDataString($ctx.Request.Url.AbsolutePath)
+    # dev-хук: страница может прислать картинку (dataURL) для визуальной проверки
+    if ($ctx.Request.HttpMethod -eq "POST" -and $path -eq "/__save") {
+      $reader = New-Object System.IO.StreamReader($ctx.Request.InputStream)
+      $data = $reader.ReadToEnd()
+      $b64 = $data -replace "^data:image/\w+;base64,", ""
+      [System.IO.File]::WriteAllBytes((Join-Path $root "_debug.jpg"), [System.Convert]::FromBase64String($b64))
+      $ctx.Response.StatusCode = 200
+      try { $ctx.Response.OutputStream.Close() } catch {}
+      continue
+    }
     if ($path -eq "/") { $path = "/index.html" }
     $file = Join-Path $root ($path.TrimStart("/") -replace "/", "\")
     $full = [System.IO.Path]::GetFullPath($file)
