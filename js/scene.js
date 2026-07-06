@@ -1,18 +1,20 @@
-/* NEURAVPN · hero scene: faceted "neural core" + orbiting particle network,
-   styled as a pencil sketch on paper (like the tg-channel doodles): paper-toned
-   matcap shading, brown ink edges/lines, red crayon accent nodes.
-   MeshMatcapMaterial with a procedurally drawn matcap only — no lights and
-   no PMREM environment: real PBR shaders take 30+ seconds to compile on old
-   integrated GPUs (Intel HD 4000) and freeze the page; matcap compiles
-   instantly. Particles are Points + static LineSegments — the cheapest
-   possible geometry. */
+/* NEURAVPN · hero scene: лист крафт-картона влетает в кадр и сминается
+   в комок — морф вершин plane→«мятая сфера» с волной сминания и
+   вспучиванием в середине анимации. После сминания геометрия замирает:
+   в кадре остаются только transform-анимации (вращение, параллакс) —
+   ноль вершинной работы, чтобы не лагало на Intel HD 4000.
+   Материал — MeshMatcapMaterial (карта картона × мягкий matcap):
+   без света и PMREM (PBR-шейдеры компилируются 30+ секунд на старых
+   встроенных GPU), flat shading считает нормали в фрагментном шейдере,
+   так что computeVertexNormals не нужен вовсе. */
 import * as THREE from 'three';
 
 const canvas = document.getElementById('scene');
 if (canvas) init(canvas);
 
 function init(canvas) {
-  const DPR = Math.min(window.devicePixelRatio || 1, 1.5);
+  const DPR = Math.min(window.devicePixelRatio || 1, 1.25);
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const renderer = new THREE.WebGLRenderer({
     canvas, alpha: true, antialias: true, powerPreference: 'high-performance',
@@ -24,93 +26,120 @@ function init(canvas) {
   const camera = new THREE.PerspectiveCamera(38, 1, .1, 60);
   camera.position.set(0, 0, 9);
 
-  /* ── watercolor matcap: слоистые акварельные заливки.
-     Каждое «пятно» — светлая середина и тёмный ободок (пигмент стекает
-     к краю мазка), сверху свет, по силуэту — тёмная лужица, плюс
-     зернистость бумаги. Так шейдинг шара читается как акварель. ── */
-  function makeWatercolor(base, washes, rimColor, rimAlpha) {
+  /* ── текстура картона: крафт-база, волокна, заломы, пятна ── */
+  function makeCardboard() {
     const c = document.createElement('canvas');
-    c.width = c.height = 256;
+    c.width = c.height = 512;
     const g = c.getContext('2d');
+
+    const base = g.createLinearGradient(0, 0, 512, 512);
+    base.addColorStop(0, '#c9a273');
+    base.addColorStop(.5, '#bd9563');
+    base.addColorStop(1, '#b18a58');
     g.fillStyle = base;
-    g.fillRect(0, 0, 256, 256);
+    g.fillRect(0, 0, 512, 512);
 
-    /* свет сверху-слева — почти сухая бумага */
-    const light = g.createRadialGradient(86, 70, 8, 86, 70, 150);
-    light.addColorStop(0, 'rgba(252,248,238,.9)');
-    light.addColorStop(1, 'rgba(252,248,238,0)');
-    g.fillStyle = light;
-    g.fillRect(0, 0, 256, 256);
+    /* машинное направление бумаги: едва заметные горизонтальные полосы */
+    for (let y = 0; y < 512; y += 3) {
+      g.fillStyle = `rgba(${Math.random() > .5 ? '255,240,210' : '90,60,30'},${Math.random() * .045})`;
+      g.fillRect(0, y, 512, 1.5);
+    }
 
-    /* мазки: [x, y, r, stretch, angle, светлый, тёмный, alpha] */
-    for (const [x, y, r, st, ang, colMid, colEdge, a] of washes) {
-      g.save();
-      g.translate(x, y);
-      g.rotate(ang);
-      g.scale(1, st);
-      const wash = g.createRadialGradient(0, 0, r * .1, 0, 0, r);
-      wash.addColorStop(0, hexA(colMid, a * .5));
-      wash.addColorStop(.62, hexA(colMid, a * .8));
-      wash.addColorStop(.86, hexA(colEdge, a));       /* тёмный ободок */
-      wash.addColorStop(1, hexA(colEdge, 0));
-      g.fillStyle = wash;
+    /* волокна */
+    for (let i = 0; i < 1400; i++) {
+      const x = Math.random() * 512, y = Math.random() * 512;
+      const len = 4 + Math.random() * 12;
+      const ang = (Math.random() - .5) * .7;
+      g.strokeStyle = Math.random() > .5
+        ? `rgba(226,199,155,${.04 + Math.random() * .09})`
+        : `rgba(122,88,52,${.04 + Math.random() * .08})`;
+      g.lineWidth = .8 + Math.random();
       g.beginPath();
-      /* неровный контур мазка */
-      for (let t = 0; t <= Math.PI * 2 + .01; t += Math.PI / 16) {
-        const rr = r * (1 + Math.sin(t * 3.2 + x) * .08 + Math.cos(t * 5.1 + y) * .05);
-        const px = Math.cos(t) * rr, py = Math.sin(t) * rr;
-        t === 0 ? g.moveTo(px, py) : g.lineTo(px, py);
+      g.moveTo(x, y);
+      g.lineTo(x + Math.cos(ang) * len, y + Math.sin(ang) * len);
+      g.stroke();
+    }
+
+    /* крапинки переработанной массы */
+    for (let i = 0; i < 420; i++) {
+      g.fillStyle = `rgba(70,45,22,${.08 + Math.random() * .14})`;
+      g.fillRect(Math.random() * 512, Math.random() * 512, 1 + Math.random() * 2, 1 + Math.random() * 2);
+    }
+
+    /* разводы */
+    for (let i = 0; i < 5; i++) {
+      const x = Math.random() * 512, y = Math.random() * 512, r = 60 + Math.random() * 120;
+      const st = g.createRadialGradient(x, y, r * .2, x, y, r);
+      st.addColorStop(0, 'rgba(140,100,55,.07)');
+      st.addColorStop(1, 'rgba(140,100,55,0)');
+      g.fillStyle = st;
+      g.fillRect(0, 0, 512, 512);
+    }
+
+    /* заломы: тёмная линия сгиба + светлый блик рядом */
+    for (let i = 0; i < 15; i++) {
+      let x = Math.random() * 512, y = Math.random() * 512;
+      let ang = Math.random() * Math.PI * 2;
+      g.beginPath();
+      g.moveTo(x, y);
+      const pts = [[x, y]];
+      for (let s = 0; s < 3 + Math.random() * 3; s++) {
+        ang += (Math.random() - .5) * 1.1;
+        x += Math.cos(ang) * (40 + Math.random() * 70);
+        y += Math.sin(ang) * (40 + Math.random() * 70);
+        g.lineTo(x, y);
+        pts.push([x, y]);
       }
-      g.closePath();
-      g.fill();
-      g.restore();
+      g.strokeStyle = `rgba(88,58,28,${.22 + Math.random() * .18})`;
+      g.lineWidth = 1.6 + Math.random();
+      g.stroke();
+      g.beginPath();
+      g.moveTo(pts[0][0] + 2, pts[0][1] + 2);
+      for (let p = 1; p < pts.length; p++) g.lineTo(pts[p][0] + 2, pts[p][1] + 2);
+      g.strokeStyle = `rgba(235,210,165,${.18 + Math.random() * .14})`;
+      g.lineWidth = 1.2;
+      g.stroke();
     }
 
-    /* тёмная лужица пигмента по силуэту сферы */
-    const rim = g.createRadialGradient(128, 128, 84, 128, 128, 128);
-    rim.addColorStop(0, hexA(rimColor, 0));
-    rim.addColorStop(.75, hexA(rimColor, rimAlpha * .45));
-    rim.addColorStop(1, hexA(rimColor, rimAlpha));
-    g.fillStyle = rim;
-    g.fillRect(0, 0, 256, 256);
+    /* лёгкая виньетка */
+    const vg = g.createRadialGradient(256, 256, 190, 256, 256, 380);
+    vg.addColorStop(0, 'rgba(60,38,18,0)');
+    vg.addColorStop(1, 'rgba(60,38,18,.16)');
+    g.fillStyle = vg;
+    g.fillRect(0, 0, 512, 512);
 
-    /* грануляция — зерно бумаги */
-    for (let i = 0; i < 1500; i++) {
-      g.fillStyle = `rgba(75,47,29,${Math.random() * .055})`;
-      g.fillRect(Math.random() * 256, Math.random() * 256, 1.5, 1.5);
-    }
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     return tex;
   }
 
-  function hexA(hex, a) {
-    const n = parseInt(hex.slice(1), 16);
-    return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${Math.max(0, Math.min(1, a))})`;
+  /* ── мягкий нейтральный matcap: свет сверху-слева, тень и тёмный край ── */
+  function makeSoftMatcap() {
+    const c = document.createElement('canvas');
+    c.width = c.height = 256;
+    const g = c.getContext('2d');
+    const grad = g.createLinearGradient(40, 0, 220, 256);
+    grad.addColorStop(0, '#fffdf6');
+    grad.addColorStop(.55, '#cfc2ac');
+    grad.addColorStop(1, '#5f4c36');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 256, 256);
+    const hl = g.createRadialGradient(86, 70, 6, 86, 70, 120);
+    hl.addColorStop(0, 'rgba(255,253,244,.85)');
+    hl.addColorStop(1, 'rgba(255,253,244,0)');
+    g.fillStyle = hl;
+    g.fillRect(0, 0, 256, 256);
+    const rim = g.createRadialGradient(128, 128, 86, 128, 128, 128);
+    rim.addColorStop(0, 'rgba(58,36,19,0)');
+    rim.addColorStop(1, 'rgba(58,36,19,.55)');
+    g.fillStyle = rim;
+    g.fillRect(0, 0, 256, 256);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
   }
 
-  /* светлая сепия для внешнего шара, тёмный крафт для деталей,
-     терракотово-красная — акцент на спутниках */
-  const coreCap = makeWatercolor('#f3ecdc', [
-    [150, 96, 74, .8, .5,  '#d9c09a', '#8a6844', .5],
-    [82, 150, 60, 1.1, -.4, '#c8a97e', '#7a5535', .55],
-    [190, 178, 66, .9, .9,  '#b3906a', '#5f4426', .6],
-    [70, 60, 44, .85, .2,   '#e2cfae', '#a07c52', .4],
-    [176, 44, 34, 1, -.7,   '#c96a5a', '#a32318', .16],
-  ], '#4b2f1d', .5);
-
-  const darkCap = makeWatercolor('#c2ab8c', [
-    [140, 90, 70, .9, .4,  '#a98d69', '#6f5236', .6],
-    [90, 168, 62, 1.05, -.5, '#8a6a4f', '#54371f', .65],
-    [196, 170, 48, .8, .8, '#77573b', '#3f2814', .55],
-  ], '#3a2413', .6);
-
-  const redCap = makeWatercolor('#e6c9ba', [
-    [140, 96, 72, .9, .4,  '#c0533f', '#8e1f12', .6],
-    [92, 162, 58, 1, -.5,  '#a83a28', '#6e150a', .6],
-  ], '#5c150c', .55);
-
-  /* ── crayon dot sprite: неровная точка, как от воскового мелка ── */
+  /* ── crayon dot sprite для узлов сети ── */
   function makeDot(color) {
     const c = document.createElement('canvas');
     c.width = c.height = 64;
@@ -127,97 +156,93 @@ function init(canvas) {
     return new THREE.CanvasTexture(c);
   }
 
-  /* ── core group ── */
+  const softCap = makeSoftMatcap();
+
+  const world = new THREE.Group();
+  scene.add(world);
   const core = new THREE.Group();
-  scene.add(core);
+  world.add(core);
 
-  const outer = new THREE.Mesh(
-    new THREE.IcosahedronGeometry(1.55, 1),
-    new THREE.MeshMatcapMaterial({ matcap: coreCap, flatShading: true })
-  );
-  core.add(outer);
+  /* ── лист картона → мятый шар ── */
+  const SHEET_W = 5.4, SHEET_H = 3.8, R = 1.5;
+  const sheetGeo = new THREE.PlaneGeometry(SHEET_W, SHEET_H, 26, 18);
+  const posAttr = sheetGeo.getAttribute('position');
+  const count = posAttr.count;
+  const flat = posAttr.array.slice();
 
-  const edges = new THREE.LineSegments(
-    new THREE.EdgesGeometry(outer.geometry),
-    new THREE.LineBasicMaterial({ color: 0x4b2f1d, transparent: true, opacity: .55, depthWrite: false })
-  );
-  edges.scale.setScalar(1.004);
-  core.add(edges);
-
-  const inner = new THREE.Mesh(
-    new THREE.OctahedronGeometry(.7, 0),
-    new THREE.MeshMatcapMaterial({ matcap: darkCap, flatShading: true })
-  );
-  core.add(inner);
-
-  /* органическое «дыхание» формы: вершины плавно плывут по радиусу.
-     Смещение — функция от координаты вершины, поэтому дублированные
-     вершины (non-indexed geometry) двигаются одинаково и грани не рвутся;
-     та же функция для EdgesGeometry держит чернильный контур на месте. */
-  function makeWobbler(geo) {
-    const pos = geo.getAttribute('position');
-    const base = pos.array.slice();
-    return (t) => {
-      const a = pos.array;
-      for (let i = 0; i < a.length; i += 3) {
-        const x = base[i], y = base[i + 1], z = base[i + 2];
-        const s = 1 + Math.sin(t * 1.1 + (x * 2.1 + y * 1.7 + z * 2.6) * 2) * .045;
-        a[i] = x * s; a[i + 1] = y * s; a[i + 2] = z * s;
-      }
-      pos.needsUpdate = true;
-    };
+  /* складки: детерминированный псевдошум из синусов */
+  function crumpleNoise(x, y, z) {
+    return Math.sin(x * 3.1 + 1.7) * Math.sin(y * 3.7 + 4.2) * .55
+         + Math.sin(y * 5.3 + 2.1) * Math.sin(z * 4.6 + .8) * .3
+         + Math.sin(z * 9.2 + 5.5) * Math.sin(x * 8.4 + 3.3) * .15;
   }
-  const wobbleOuter = makeWobbler(outer.geometry);
-  const wobbleEdges = makeWobbler(edges.geometry);
+  function hash(i) { const s = Math.sin(i * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }
 
-  /* orbit ring */
-  const ring = new THREE.Mesh(
-    new THREE.TorusGeometry(2.45, .018, 8, 120),
-    new THREE.MeshMatcapMaterial({ matcap: darkCap })
-  );
+  /* целевые позиции: лист «обёрнут» вокруг сферы с шумом складок */
+  const target = new Float32Array(flat.length);
+  const dirs = new Float32Array(flat.length);
+  const delay = new Float32Array(count);
+  for (let i = 0; i < count; i++) {
+    const i3 = i * 3;
+    const u = flat[i3] / SHEET_W + .5;
+    const v = flat[i3 + 1] / SHEET_H + .5;
+    const th = u * Math.PI * 2;
+    const ph = v * Math.PI;
+    const dx = Math.sin(ph) * Math.cos(th);
+    const dy = Math.cos(ph);
+    const dz = Math.sin(ph) * Math.sin(th);
+    const r = R * (1 + .17 * crumpleNoise(dx * 2, dy * 2, dz * 2)) + (hash(i) - .5) * .06;
+    dirs[i3] = dx; dirs[i3 + 1] = dy; dirs[i3 + 2] = dz;
+    target[i3] = dx * r; target[i3 + 1] = dy * r; target[i3 + 2] = dz * r;
+    /* волна сминания идёт от дальнего угла листа + случайный джиттер */
+    delay[i] = (u * .55 + v * .45) * .38 + hash(i + 999) * .1;
+  }
+
+  const sheet = new THREE.Mesh(sheetGeo, new THREE.MeshMatcapMaterial({
+    matcap: softCap, map: makeCardboard(), flatShading: true, side: THREE.DoubleSide,
+  }));
+  core.add(sheet);
+
+  /* ── орбитальное кольцо и картонные спутники (появляются после сминания) ── */
+  const ringMat = new THREE.MeshMatcapMaterial({ matcap: softCap, color: 0x8a6a4f, transparent: true, opacity: 0 });
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(2.45, .018, 8, 96), ringMat);
   ring.rotation.x = Math.PI / 2.25;
   ring.rotation.y = .35;
   core.add(ring);
 
-  /* small satellites on the ring */
+  const satMat = new THREE.MeshMatcapMaterial({ matcap: softCap, color: 0xa33222, flatShading: true, transparent: true, opacity: 0 });
   const sats = [];
   for (let i = 0; i < 3; i++) {
-    const s = new THREE.Mesh(
-      new THREE.TetrahedronGeometry(.13, 0),
-      new THREE.MeshMatcapMaterial({ matcap: redCap, flatShading: true })
-    );
+    const s = new THREE.Mesh(new THREE.TetrahedronGeometry(.13, 0), satMat);
     s.userData.phase = (i / 3) * Math.PI * 2;
     core.add(s);
     sats.push(s);
   }
 
-  /* ── neural shell: points on a sphere + connections ── */
+  /* ── сеть-набросок вокруг (статичная геометрия) ── */
   const shell = new THREE.Group();
-  scene.add(shell);
+  world.add(shell);
 
-  const N = 130, R = 3.1;
+  const N = 110, SR = 3.1;
   const pts = new Float32Array(N * 3);
   const vecs = [];
   for (let i = 0; i < N; i++) {
-    // fibonacci sphere + jitter → even spread without clumps
     const y = 1 - (i / (N - 1)) * 2;
-    const r = Math.sqrt(1 - y * y);
+    const rr = Math.sqrt(1 - y * y);
     const th = i * 2.39996;
-    const v = new THREE.Vector3(Math.cos(th) * r, y, Math.sin(th) * r)
-      .multiplyScalar(R * (0.92 + Math.random() * 0.18));
+    const v = new THREE.Vector3(Math.cos(th) * rr, y, Math.sin(th) * rr)
+      .multiplyScalar(SR * (0.92 + hash(i * 7) * 0.18));
     vecs.push(v);
     pts.set([v.x, v.y, v.z], i * 3);
   }
   const ptsGeo = new THREE.BufferGeometry();
   ptsGeo.setAttribute('position', new THREE.BufferAttribute(pts, 3));
-  const points = new THREE.Points(ptsGeo, new THREE.PointsMaterial({
+  const pointsMat = new THREE.PointsMaterial({
     size: .13, map: makeDot('rgba(75,47,29,1)'), color: 0xffffff,
-    transparent: true, opacity: .55, depthWrite: false,
-    alphaTest: .1, sizeAttenuation: true,
-  }));
-  shell.add(points);
+    transparent: true, opacity: 0, depthWrite: false, alphaTest: .1, sizeAttenuation: true,
+  });
+  shell.add(new THREE.Points(ptsGeo, pointsMat));
 
-  /* connect neighbours once (static geometry — cheap to draw) */
   const linePos = [];
   for (let i = 0; i < N; i++) {
     for (let j = i + 1; j < N; j++) {
@@ -228,12 +253,9 @@ function init(canvas) {
   }
   const lineGeo = new THREE.BufferGeometry();
   lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(linePos, 3));
-  const lines = new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({
-    color: 0x6b4a30, transparent: true, opacity: .3, depthWrite: false,
-  }));
-  shell.add(lines);
+  const linesMat = new THREE.LineBasicMaterial({ color: 0x6b4a30, transparent: true, opacity: 0, depthWrite: false });
+  shell.add(new THREE.LineSegments(lineGeo, linesMat));
 
-  /* a few bright accent nodes */
   const accGeo = new THREE.BufferGeometry();
   const accPos = new Float32Array(8 * 3);
   for (let i = 0; i < 8; i++) {
@@ -241,22 +263,17 @@ function init(canvas) {
     accPos.set([v.x, v.y, v.z], i * 3);
   }
   accGeo.setAttribute('position', new THREE.BufferAttribute(accPos, 3));
-  shell.add(new THREE.Points(accGeo, new THREE.PointsMaterial({
+  const accMat = new THREE.PointsMaterial({
     size: .3, map: makeDot('rgba(163,35,24,1)'), color: 0xffffff,
-    transparent: true, opacity: .9, depthWrite: false,
-    alphaTest: .1, sizeAttenuation: true,
-  })));
+    transparent: true, opacity: 0, depthWrite: false, alphaTest: .1, sizeAttenuation: true,
+  });
+  shell.add(new THREE.Points(accGeo, accMat));
 
-  /* ── layout: shift composition right on wide screens ── */
-  const world = new THREE.Group();
-  scene.remove(core, shell);
-  world.add(core, shell);
-  scene.add(world);
-
+  /* ── layout ── */
   function layout() {
     const w = canvas.clientWidth || innerWidth;
     const h = canvas.clientHeight || innerHeight;
-    if (w < 2 || h < 2) return;   // panel mid-resize can report 0 — skip, heal later
+    if (w < 2 || h < 2) return;
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
@@ -264,58 +281,139 @@ function init(canvas) {
       world.position.set(2.6, 0, 0);
       world.scale.setScalar(1);
     } else {
-      world.position.set(0, 1.15, 0);   // above the copy on small screens
+      world.position.set(0, 1.15, 0);
       world.scale.setScalar(.62);
     }
   }
   layout();
   addEventListener('resize', layout);
 
-  /* ── interaction ── */
+  /* ── взаимодействие ── */
   const mouse = { x: 0, y: 0, tx: 0, ty: 0 };
   addEventListener('pointermove', (e) => {
     mouse.tx = (e.clientX / innerWidth) * 2 - 1;
     mouse.ty = (e.clientY / innerHeight) * 2 - 1;
   }, { passive: true });
 
-  let scrollT = 0;                       // 0..1 while hero scrolls away
+  let scrollT = 0;
   addEventListener('scroll', () => {
     const h = canvas.parentElement.offsetHeight || innerHeight;
     scrollT = Math.min(1, Math.max(0, scrollY / h));
   }, { passive: true });
 
-  /* pause rendering when the hero is off-screen or the tab is hidden */
   let inView = true;
   new IntersectionObserver(([e]) => { inView = e.isIntersecting; }, { threshold: 0 })
     .observe(canvas);
 
+  /* ── таймлайн сминания ──
+     фазы: 0 — лист ждёт за прелоадером; 1 — падение + сминание + отскок;
+     2 — готово, вершины заморожены. */
+  const DROP = .7, CRUMPLE_AT = .55, CRUMPLE = 1.9, BOUNCE_AT = 2.5, DONE = 3.3;
+  const clamp01 = (x) => Math.min(1, Math.max(0, x));
+  const outCubic = (x) => 1 - Math.pow(1 - x, 3);
+  const smooth = (x) => x * x * (3 - 2 * x);
+
+  let phase = 0;
+  let started = false;
+  let animK = 0;      /* время анимации копится только в отрисованных кадрах:
+                         скрытая вкладка не «проматывает» сминание */
+  let prevT = 0;
   const clock = new THREE.Clock();
+
+  function applyCrumple(c, time) {
+    const a = posAttr.array;
+    for (let i = 0; i < count; i++) {
+      const i3 = i * 3;
+      const e = smooth(clamp01((c * 1.48 - delay[i]) / 1));
+      /* вспучивание в середине сминания */
+      const buckle = Math.sin(e * Math.PI) * .32 *
+        crumpleNoise(dirs[i3] * 1.7 + time, dirs[i3 + 1] * 1.9, dirs[i3 + 2] * 1.6);
+      a[i3]     = flat[i3]     + (target[i3]     - flat[i3])     * e + dirs[i3]     * buckle;
+      a[i3 + 1] = flat[i3 + 1] + (target[i3 + 1] - flat[i3 + 1]) * e + dirs[i3 + 1] * buckle;
+      a[i3 + 2] = flat[i3 + 2] + (target[i3 + 2] - flat[i3 + 2]) * e + dirs[i3 + 2] * buckle;
+    }
+    posAttr.needsUpdate = true;
+  }
+
+  function finishInstantly() {
+    applyCrumple(1, 0);
+    ringMat.opacity = 1;
+    satMat.opacity = 1;
+    pointsMat.opacity = .55;
+    linesMat.opacity = .3;
+    accMat.opacity = .9;
+    core.position.y = 0;
+    core.rotation.x = 0;
+    core.rotation.z = 0;
+    phase = 2;
+  }
+
+  function startIntro() {
+    if (started) return;
+    started = true;
+    if (reduceMotion) { finishInstantly(); return; }
+    phase = 1;
+  }
+  addEventListener('nv:intro', startIntro);
+  setTimeout(startIntro, 8000);            /* страховка, если событие не пришло */
+
+  /* стартовая поза листа */
+  core.position.y = 3.4;
+  core.rotation.x = -1.05;
+  core.rotation.z = .35;
+
+  let spinBoost = 0;
+
   renderer.setAnimationLoop(() => {
     if (!inView || document.hidden) return;
-
-    /* self-heal after a degenerate resize (panel dragged to 0 width) */
-    const cw = canvas.clientWidth, ch = canvas.clientHeight;
-    if (cw > 1 && ch > 1 &&
-        (canvas.width !== Math.round(cw * DPR) || canvas.height !== Math.round(ch * DPR))) {
-      layout();
-    }
-
     const t = clock.getElapsedTime();
+    const dt = Math.min(t - prevT, .066);   /* пауза не проматывает время */
+    prevT = t;
 
     mouse.x += (mouse.tx - mouse.x) * .045;
     mouse.y += (mouse.ty - mouse.y) * .045;
 
-    core.rotation.y = t * .18 + mouse.x * .35 + scrollT * 1.6;
-    core.rotation.x = Math.sin(t * .12) * .1 + mouse.y * .22;
-    inner.rotation.y = -t * .5;
-    inner.rotation.z = t * .3;
-    const pulse = 1 + Math.sin(t * 1.6) * .035;
-    inner.scale.setScalar(pulse);
-    edges.material.opacity = .48 + Math.sin(t * 1.6) * .12;
+    if (phase === 1) {
+      animK += dt;
+      const k = animK;
 
-    wobbleOuter(t);
-    wobbleEdges(t);
-    outer.geometry.computeVertexNormals();
+      /* падение листа */
+      const drop = outCubic(clamp01(k / DROP));
+      core.position.y = (1 - drop) * 3.4;
+      core.rotation.x = -1.05 * (1 - drop) + mouse.y * .22 * drop;
+      core.rotation.z = .35 * (1 - drop);
+
+      /* сминание */
+      const c = clamp01((k - CRUMPLE_AT) / CRUMPLE);
+      applyCrumple(c, t);
+      spinBoost = outCubic(c) * 2.4;
+
+      /* сеть и орбита проявляются к концу */
+      const o = clamp01((k - 2.15) / .8);
+      ringMat.opacity = o;
+      satMat.opacity = o;
+      pointsMat.opacity = .55 * o;
+      linesMat.opacity = .3 * o;
+      accMat.opacity = .9 * o;
+
+      /* упругий отскок комка */
+      if (k > BOUNCE_AT) {
+        const b = k - BOUNCE_AT;
+        const s = 1 + .06 * Math.exp(-b * 3.2) * Math.sin(b * 13);
+        core.scale.setScalar(s);
+      }
+
+      if (k >= DONE) {
+        applyCrumple(1, 0);               /* финальная запись без вспучивания */
+        core.scale.setScalar(1);
+        phase = 2;                        /* дальше вершины не трогаем */
+      }
+    }
+
+    core.rotation.y = t * .18 + mouse.x * .35 + scrollT * 1.6 + spinBoost;
+    if (phase === 2) {
+      core.rotation.x = Math.sin(t * .12) * .1 + mouse.y * .22;
+    }
 
     for (const s of sats) {
       const a = t * .45 + s.userData.phase;
@@ -329,6 +427,13 @@ function init(canvas) {
 
     world.rotation.z = scrollT * -.18;
     camera.position.z = 9 + scrollT * 1.4;
+
+    /* self-heal после вырожденного ресайза панели */
+    const cw = canvas.clientWidth, ch = canvas.clientHeight;
+    if (cw > 1 && ch > 1 &&
+        (canvas.width !== Math.round(cw * DPR) || canvas.height !== Math.round(ch * DPR))) {
+      layout();
+    }
 
     renderer.render(scene, camera);
   });
