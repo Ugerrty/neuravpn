@@ -236,7 +236,7 @@ function init(canvas) {
   /* наклон силуэта в плоскости экрана — «взлетающая» поза логотипа */
   const pose = new THREE.Group();
   pose.scale.x = -1;
-  pose.rotation.z = -.22;
+  pose.rotation.z = -.36;
   world.add(pose);
   const craft = new THREE.Group();
   pose.add(craft);
@@ -426,7 +426,7 @@ function init(canvas) {
 
   /* ── поза логотипа Telegram (подобрана визуально): нос вверх-вправо,
      видны верхняя плоскость и киль; движения — минимальные ── */
-  const IDLE_E = new THREE.Euler(-.15, 1.05, .1);
+  const IDLE_E = new THREE.Euler(-.02, .86, .06);
   const eTmp = new THREE.Euler();
   const idleP = new THREE.Vector3();
   const idleQ = new THREE.Quaternion();
