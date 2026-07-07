@@ -26,6 +26,7 @@
     setTimeout(function () {
       document.body.classList.remove('is-loading');
       heroIntro();
+      dispatchEvent(new CustomEvent('nv:intro'));   /* старт сминания картона */
     }, 350);
   }
   addEventListener('load', finishLoad);
