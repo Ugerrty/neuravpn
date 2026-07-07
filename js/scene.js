@@ -1,12 +1,15 @@
-/* NEURAVPN · hero scene: картонный самолётик.
-   Интро: плоский лист-заготовка опускается в кадр, складывается в дротик
-   (сгиб по килю, затем крылья — честные повороты панелей вокруг линий
-   сгиба), делает петлю с пунктирным следом и паркуется в центре.
-   Idle: парение на «воздушных потоках», нос подруливает за курсором,
-   при наведении на самолётик — бочка (barrel roll).
-   Производительность (Intel HD 4000): в модели 12 вершин, вершины
-   обновляются только 1.2 с складывания, дальше — чистые трансформации;
-   matcap без света и PMREM, DPR ≤ 1.25, пауза вне экрана. */
+/* NEURAVPN · hero scene: самолётик из ГОФРОКАРТОНА в позе логотипа Telegram.
+   Модель — четыре толстые панели (крафт-лайнеры сверху/снизу + волнистая
+   гофра на срезах, как у настоящей картонной коробки), сшитые шарнирами
+   по линиям сгиба. Интро: вырезанная заготовка опускается в кадр,
+   с лёгким пружинным «щелчком» складывается (корпус, затем крылья),
+   плавной дугой с красным пунктирным следом заходит на парковку и
+   бесшовно перетекает в позу логотипа: последние 30% полёта позиция и
+   ориентация интерполируются к живой idle-позе — той же функции, что
+   работает дальше. Idle: держит позу, только слегка покачивается.
+   Производительность (Intel HD 4000): ~13 draw calls, шарниры — O(1)
+   на кадр, после интро только transform-анимации; matcap без света и
+   PMREM (PBR компилируется 30+ с на старых GPU), DPR ≤ 1.25. */
 import * as THREE from 'three';
 
 const canvas = document.getElementById('scene');
@@ -32,17 +35,24 @@ function init(canvas) {
   const smooth = (x) => x * x * (3 - 2 * x);
   const outCubic = (x) => 1 - Math.pow(1 - x, 3);
   const inOutCubic = (x) => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+  /* сгиб с лёгкой пружиной: замах в начале, перелёт и досадка в конце */
+  function inOutBack(x) {
+    const c = 1.15, c2 = c * 1.525;
+    return x < .5
+      ? (Math.pow(2 * x, 2) * ((c2 + 1) * 2 * x - c2)) / 2
+      : (Math.pow(2 * x - 2, 2) * ((c2 + 1) * (2 * x - 2) + c2) + 2) / 2;
+  }
   function hash(i) { const s = Math.sin(i * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }
 
-  /* мягкий тёплый matcap: свет сверху-слева, глубокая тень, тёмный край */
+  /* ── мягкий тёплый matcap: студийный свет сверху-слева ── */
   function makeSoftMatcap() {
     const c = document.createElement('canvas');
     c.width = c.height = 256;
     const g = c.getContext('2d');
     const grad = g.createLinearGradient(40, 0, 220, 256);
     grad.addColorStop(0, '#fffef8');
-    grad.addColorStop(.52, '#d8ccb6');
-    grad.addColorStop(1, '#63503a');
+    grad.addColorStop(.5, '#f2ead9');
+    grad.addColorStop(1, '#9c8465');
     g.fillStyle = grad;
     g.fillRect(0, 0, 256, 256);
     const hl = g.createRadialGradient(84, 68, 6, 84, 68, 118);
@@ -52,11 +62,149 @@ function init(canvas) {
     g.fillRect(0, 0, 256, 256);
     const rim = g.createRadialGradient(128, 128, 88, 128, 128, 128);
     rim.addColorStop(0, 'rgba(58,36,19,0)');
-    rim.addColorStop(1, 'rgba(58,36,19,.5)');
+    rim.addColorStop(1, 'rgba(58,36,19,.4)');
     g.fillStyle = rim;
     g.fillRect(0, 0, 256, 256);
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  /* ── развёртка (плоские координаты, y=0): нос по +Z ── */
+  const N = new THREE.Vector2(0, 1.3);      /* нос */
+  const T = new THREE.Vector2(0, -1.0);     /* хвост на киле */
+  const F = new THREE.Vector2(.33, -1.0);   /* хвост на линии сгиба крыла */
+  const WG = new THREE.Vector2(1.25, -.92); /* законцовка крыла */
+  const TH = .055;                          /* толщина картона */
+
+  /* ── лицевой слой (лайнер): крафт, волокна, просвечивающая гофра,
+     биговки по сгибам и «окунутый в краску» красный нос.
+     UV лицевых граней ExtrudeGeometry — сырые координаты развёртки,
+     поэтому рисуем текстуру прямо в системе развёртки. ── */
+  const DEV_MIN = -1.35, DEV_SPAN = 2.7;    /* охват развёртки по x */
+  const DEVZ_MIN = -1.15;                   /* по z */
+  function devToPx(x, z) {
+    return [ (x - DEV_MIN) / DEV_SPAN * 512, (1 - (z - DEVZ_MIN) / DEV_SPAN) * 512 ];
+  }
+  function makeLiner() {
+    const c = document.createElement('canvas');
+    c.width = c.height = 512;
+    const g = c.getContext('2d');
+    const base = g.createLinearGradient(0, 0, 512, 512);
+    base.addColorStop(0, '#c9a26c');
+    base.addColorStop(.5, '#bd9660');
+    base.addColorStop(1, '#b28a55');
+    g.fillStyle = base;
+    g.fillRect(0, 0, 512, 512);
+
+    /* гофра просвечивает сквозь лайнер: мягкие полосы поперёк листа */
+    for (let y = 0; y < 512; y += 9) {
+      g.fillStyle = 'rgba(90,60,30,.05)';
+      g.fillRect(0, y, 512, 3.5);
+      g.fillStyle = 'rgba(255,240,214,.05)';
+      g.fillRect(0, y + 4.5, 512, 2.5);
+    }
+    /* волокна крафта */
+    for (let i = 0; i < 1100; i++) {
+      const x = Math.random() * 512, y = Math.random() * 512;
+      const len = 5 + Math.random() * 13;
+      const ang = (Math.random() - .5) * .55;
+      g.strokeStyle = Math.random() > .5
+        ? `rgba(232,206,160,${.05 + Math.random() * .08})`
+        : `rgba(120,88,52,${.04 + Math.random() * .07})`;
+      g.lineWidth = .8 + Math.random() * .9;
+      g.beginPath();
+      g.moveTo(x, y);
+      g.lineTo(x + Math.cos(ang) * len, y + Math.sin(ang) * len);
+      g.stroke();
+    }
+    /* крапинки переработанной массы */
+    for (let i = 0; i < 300; i++) {
+      g.fillStyle = `rgba(80,52,26,${.07 + Math.random() * .12})`;
+      g.fillRect(Math.random() * 512, Math.random() * 512, 1 + Math.random() * 2, 1 + Math.random() * 2);
+    }
+    /* биговки (продавленные линии сгиба): тёмный жёлоб + светлый гребень */
+    const nPx = devToPx(N.x, N.y), tPx = devToPx(T.x, T.y);
+    const creases = [
+      [nPx, tPx],
+      [nPx, devToPx(F.x, F.y)],
+      [nPx, devToPx(-F.x, F.y)],
+    ];
+    for (const [a, b] of creases) {
+      g.strokeStyle = 'rgba(88,58,28,.28)';
+      g.lineWidth = 2.4;
+      g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
+      g.strokeStyle = 'rgba(240,216,170,.3)';
+      g.lineWidth = 1.1;
+      g.beginPath(); g.moveTo(a[0] + 2, a[1] + 1); g.lineTo(b[0] + 2, b[1] + 1); g.stroke();
+    }
+    /* красный нос — как окунули в краску, с неровной кромкой */
+    const [nx, ny] = nPx;
+    g.fillStyle = '#a83a28';
+    g.beginPath();
+    for (let a = 0; a <= Math.PI * 2 + .01; a += Math.PI / 24) {
+      const r = 82 * (1 + Math.sin(a * 7 + 1) * .06 + Math.sin(a * 3 + 2) * .05);
+      const px = nx + Math.cos(a) * r, py = ny + Math.sin(a) * r;
+      a === 0 ? g.moveTo(px, py) : g.lineTo(px, py);
+    }
+    g.closePath();
+    g.fill();
+    /* тёмный ободок засохшей краски */
+    g.strokeStyle = 'rgba(110,21,10,.5)';
+    g.lineWidth = 3;
+    g.stroke();
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+    /* uv лицевых граней = координаты развёртки → нормируем */
+    tex.repeat.set(1 / DEV_SPAN, 1 / DEV_SPAN);
+    tex.offset.set(-DEV_MIN / DEV_SPAN, -DEVZ_MIN / DEV_SPAN);
+    return tex;
+  }
+
+  /* ── срез гофрокартона: волна между двумя лайнерами ── */
+  function makeFlute() {
+    const c = document.createElement('canvas');
+    c.width = 128; c.height = 64;
+    const g = c.getContext('2d');
+    g.fillStyle = '#d3ab74';                    /* внутренность среза */
+    g.fillRect(0, 0, 128, 64);
+    /* тень в глубине волны */
+    for (let x = 0; x < 128; x++) {
+      const s = Math.sin((x / 128) * Math.PI * 2);
+      g.fillStyle = `rgba(122,85,48,${.14 + .1 * s})`;
+      g.fillRect(x, 10, 1, 44);
+    }
+    /* сама гофра — жирная волна */
+    g.strokeStyle = '#8a6038';
+    g.lineWidth = 7;
+    g.beginPath();
+    for (let x = -4; x <= 132; x += 2) {
+      const y = 32 + Math.sin((x / 128) * Math.PI * 2) * 16;
+      x === -4 ? g.moveTo(x, y) : g.lineTo(x, y);
+    }
+    g.stroke();
+    g.strokeStyle = 'rgba(240,214,168,.55)';    /* блик на волне */
+    g.lineWidth = 2.2;
+    g.beginPath();
+    for (let x = -4; x <= 132; x += 2) {
+      const y = 29 + Math.sin((x / 128) * Math.PI * 2) * 16;
+      x === -4 ? g.moveTo(x, y) : g.lineTo(x, y);
+    }
+    g.stroke();
+    /* кромки лайнеров сверху и снизу среза */
+    g.fillStyle = '#9a7040';
+    g.fillRect(0, 0, 128, 7);
+    g.fillRect(0, 57, 128, 7);
+    g.fillStyle = 'rgba(255,238,200,.35)';
+    g.fillRect(0, 7, 128, 1.5);
+    g.fillRect(0, 55.5, 128, 1.5);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    /* u — вдоль кромки (волна каждые ~0.12 ед.), v — на толщину среза */
+    tex.repeat.set(8.5, 1 / TH);
     return tex;
   }
 
@@ -77,152 +225,126 @@ function init(canvas) {
   }
 
   const softCap = makeSoftMatcap();
+  const linerMat = new THREE.MeshMatcapMaterial({
+    matcap: softCap, map: makeLiner(), flatShading: true, side: THREE.DoubleSide,
+  });
+  const fluteMat = new THREE.MeshMatcapMaterial({
+    matcap: softCap, map: makeFlute(), flatShading: true, side: THREE.DoubleSide,
+  });
+
+  /* ── панель = толстая призма из развёртки (Shape в (x, devZ)) ──
+     ExtrudeGeometry даёт материал-группы: 0 — лицо/изнанка (лайнер),
+     1 — стенки среза (гофра). Поворачиваем в плоскость развёртки. */
+  const mFold = new THREE.Matrix4().makeRotationX(Math.PI / 2);
+  function makePanel(points) {
+    const sh = new THREE.Shape();
+    sh.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) sh.lineTo(points[i].x, points[i].y);
+    sh.closePath();
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: TH, bevelEnabled: false });
+    geo.applyMatrix4(mFold);                 /* (x,y,z) → (x, z, y): в план */
+    geo.translate(0, TH / 2, 0);             /* толщина симметрично */
+    return new THREE.Mesh(geo, [linerMat, fluteMat]);
+  }
 
   const world = new THREE.Group();
   scene.add(world);
-  const craft = new THREE.Group();      /* самолётик */
-  world.add(craft);
+  /* наклон силуэта в плоскости экрана — «взлетающая» поза логотипа */
+  const pose = new THREE.Group();
+  pose.rotation.z = .22;
+  world.add(pose);
+  const craft = new THREE.Group();
+  pose.add(craft);
+  craft.scale.setScalar(1.7);
 
-  /* ── развёртка дротика (плоский «воздушный змей», нос вдоль +Z) ──
-     Точки: N нос, T хвост по центру, C конец линии сгиба крыла, W кончик
-     крыла. Панели: киль (N,T,C) и крыло (N,C,W) на каждую сторону.
-     kind: 0 — на центральной оси (не двигается), 1 — панель киля
-     (поворот вокруг оси Z на угол A), 2 — крыло (сначала поворот вокруг
-     линии сгиба N→C на угол B, затем общий поворот A). */
-  const N = [0, 1.15], T = [0, -.95], C = [.36, -.95], W = [1.05, -.72];
-  /* [x, z, kind, side] */
-  const meshVerts = [
-    /* правый киль */  [N[0], N[1], 0, 1], [T[0], T[1], 0, 1], [C[0], C[1], 1, 1],
-    /* правое крыло */ [N[0], N[1], 0, 1], [C[0], C[1], 1, 1], [W[0], W[1], 2, 1],
-    /* левый киль */   [N[0], N[1], 0, -1], [-C[0], C[1], 1, -1], [T[0], T[1], 0, -1],
-    /* левое крыло */  [N[0], N[1], 0, -1], [-W[0], W[1], 2, -1], [-C[0], C[1], 1, -1],
-  ];
-  /* чернильные рёбра: киль, сгибы, силуэт */
-  const edgeVerts = [
-    [N[0], N[1], 0, 1], [T[0], T[1], 0, 1],                     /* киль */
-    [N[0], N[1], 0, 1], [C[0], C[1], 1, 1],                     /* сгиб R */
-    [N[0], N[1], 0, -1], [-C[0], C[1], 1, -1],                  /* сгиб L */
-    [N[0], N[1], 0, 1], [W[0], W[1], 2, 1],                     /* кромка R */
-    [W[0], W[1], 2, 1], [C[0], C[1], 1, 1],                     /* законцовка R */
-    [C[0], C[1], 1, 1], [T[0], T[1], 0, 1],                     /* хвост R */
-    [N[0], N[1], 0, -1], [-W[0], W[1], 2, -1],                  /* кромка L */
-    [-W[0], W[1], 2, -1], [-C[0], C[1], 1, -1],                 /* законцовка L */
-    [-C[0], C[1], 1, -1], [T[0], T[1], 0, -1],                  /* хвост L */
-  ];
+  /* иерархия сгибов: корпус вокруг оси киля, крыло — вокруг своей биговки */
+  const zAxis = new THREE.Vector3(0, 0, 1);
+  const dirR = new THREE.Vector3(F.x - N.x, 0, F.y - N.y).normalize();
+  const dirL = new THREE.Vector3(-F.x + N.x, 0, F.y - N.y).multiplyScalar(1); dirL.x = -dirR.x; dirL.y = 0; dirL.z = dirR.z;
+  const qAlignR = new THREE.Quaternion().setFromUnitVectors(zAxis, dirR);
+  const qAlignL = new THREE.Quaternion().setFromUnitVectors(zAxis, dirL);
+  const qAlignRInv = qAlignR.clone().invert();
+  const qAlignLInv = qAlignL.clone().invert();
+  const N3 = new THREE.Vector3(N.x, 0, N.y);
 
-  const FOLD_A = 1.257;   /* 72° — панели киля вверх */
-  const FOLD_B = 1.117;   /* 64° — крылья обратно вниз, диэдр ≈ 8° */
+  function buildSide(sign, qAlign, qAlignInv) {
+    const bodyHinge = new THREE.Group();
+    craft.add(bodyHinge);
+    const body = makePanel([
+      new THREE.Vector2(0, N.y),
+      new THREE.Vector2(0, T.y),
+      new THREE.Vector2(sign * F.x, F.y),
+    ]);
+    bodyHinge.add(body);
 
-  const vA = new THREE.Vector3();
-  const creaseDir = new THREE.Vector3();
-  const noseV = new THREE.Vector3(N[0], 0, N[1]);
-
-  function foldPoint(def, A, B, out) {
-    const [x, z, kind, side] = def;
-    out.set(x, 0, z);
-    if (kind === 2 && B > 0) {          /* крыло вокруг линии сгиба N→C */
-      creaseDir.set(side * C[0] - N[0], 0, C[1] - N[1]).normalize();
-      out.sub(noseV).applyAxisAngle(creaseDir, -side * B).add(noseV);
-    }
-    if (kind >= 1 && A > 0) {           /* панель киля вниз вокруг оси Z */
-      const ca = Math.cos(-side * A), sa = Math.sin(-side * A);
-      const nx = out.x * ca - out.y * sa;
-      const ny = out.x * sa + out.y * ca;
-      out.x = nx; out.y = ny;
-    }
-    return out;
+    const wingHinge = new THREE.Group();
+    wingHinge.position.copy(N3);
+    bodyHinge.add(wingHinge);
+    const wing = makePanel([
+      new THREE.Vector2(0, N.y),
+      new THREE.Vector2(sign * F.x, F.y),
+      new THREE.Vector2(sign * WG.x, WG.y),
+    ]);
+    wing.geometry.translate(-N3.x, -N3.y, -N3.z);
+    wing.geometry.applyQuaternion(qAlignInv);
+    wingHinge.add(wing);
+    return { bodyHinge, wingHinge, qAlign, sign, wing };
   }
+  const R = buildSide(1, qAlignR, qAlignRInv);
+  const L = buildSide(-1, qAlignL, qAlignLInv);
 
-  const meshGeo = new THREE.BufferGeometry();
-  meshGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(meshVerts.length * 3), 3));
-  /* тёплый крем: киль чуть темнее, крылья светлее */
-  const colors = new Float32Array(meshVerts.length * 3);
-  const cKeel = new THREE.Color('#e3d3af');
-  const cWing = new THREE.Color('#f1e7d0');
-  meshVerts.forEach((d, i) => {
-    const col = d[2] === 2 ? cWing : cKeel;
-    colors[i * 3] = col.r; colors[i * 3 + 1] = col.g; colors[i * 3 + 2] = col.b;
-  });
-  meshGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
-  const plane = new THREE.Mesh(meshGeo, new THREE.MeshMatcapMaterial({
-    matcap: softCap, vertexColors: true, flatShading: true, side: THREE.DoubleSide,
-  }));
-  craft.add(plane);
-
-  /* красный «окунутый в краску» носик: те же панели, обрезанные у носа.
-     Точка на линии сгиба движется вместе со сгибом, поэтому kind берём
-     по принадлежности ребру развёртки. */
-  const TIP = .26;
-  const lerp2 = (a, b) => [N[0] + (a - N[0]) * TIP, N[1] + (b - N[1]) * TIP];
-  const Qt = lerp2(T[0], T[1]);         /* к хвосту по оси — kind 0 */
-  const Qc = lerp2(C[0], C[1]);         /* по сгибу крыла — kind 1 */
-  const Qw = lerp2(W[0], W[1]);         /* по кромке — kind 2 */
-  const tipVerts = [
-    [N[0], N[1], 0, 1], [Qt[0], Qt[1], 0, 1], [Qc[0], Qc[1], 1, 1],
-    [N[0], N[1], 0, 1], [Qc[0], Qc[1], 1, 1], [Qw[0], Qw[1], 2, 1],
-    [N[0], N[1], 0, -1], [-Qc[0], Qc[1], 1, -1], [Qt[0], Qt[1], 0, -1],
-    [N[0], N[1], 0, -1], [-Qw[0], Qw[1], 2, -1], [-Qc[0], Qc[1], 1, -1],
-  ];
-  const tipGeo = new THREE.BufferGeometry();
-  tipGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(tipVerts.length * 3), 3));
-  const tip = new THREE.Mesh(tipGeo, new THREE.MeshMatcapMaterial({
-    matcap: softCap, color: 0xb04532, flatShading: true, side: THREE.DoubleSide,
-    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
-  }));
-  craft.add(tip);
-
-  const edgeGeo = new THREE.BufferGeometry();
-  edgeGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(edgeVerts.length * 3), 3));
-  const edgeMat = new THREE.LineBasicMaterial({ color: 0x4b2f1d, transparent: true, opacity: .55 });
-  craft.add(new THREE.LineSegments(edgeGeo, edgeMat));
-
-  function writeFold(A, B) {
-    const ma = meshGeo.getAttribute('position');
-    meshVerts.forEach((d, i) => { foldPoint(d, A, B, vA); ma.setXYZ(i, vA.x, vA.y, vA.z); });
-    ma.needsUpdate = true;
-    const ea = edgeGeo.getAttribute('position');
-    edgeVerts.forEach((d, i) => { foldPoint(d, A, B, vA); ea.setXYZ(i, vA.x, vA.y, vA.z); });
-    ea.needsUpdate = true;
-    const ta = tipGeo.getAttribute('position');
-    tipVerts.forEach((d, i) => { foldPoint(d, A, B, vA); ta.setXYZ(i, vA.x, vA.y, vA.z); });
-    ta.needsUpdate = true;
-    meshGeo.computeBoundingSphere();
+  const FOLD_A = 1.26;    /* корпус вниз ~72° */
+  const FOLD_B = 1.12;    /* крылья обратно, лёгкий диэдр */
+  const qTmp = new THREE.Quaternion();
+  function setFold(a, b) {
+    R.bodyHinge.rotation.z = -a;
+    L.bodyHinge.rotation.z = a;
+    R.wingHinge.quaternion.copy(R.qAlign).multiply(qTmp.setFromAxisAngle(zAxis, -b));
+    L.wingHinge.quaternion.copy(L.qAlign).multiply(qTmp.setFromAxisAngle(zAxis, b));
   }
-  writeFold(0, 0);
-  craft.scale.setScalar(1.22);
+  setFold(0, 0);
 
-  /* ── петля после складывания: путь + пунктирный след ── */
-  function swoopPos(u, out) {
-    const ang = -Math.PI * .5 + Math.PI * 2.1 * u;
-    const r = 2.05 * Math.sin(Math.PI * Math.pow(u, .85)) * (1 - .25 * u);
-    out.set(
-      Math.cos(ang) * r,
-      .55 * (1 - u) + .38 * Math.sin(ang * 1.4) * (1 - u) * u * 2,
-      Math.sin(ang) * r * .55
-    );
-    return out;
-  }
+  /* штрихи скорости позади хвоста — комикс-ветер (виден только в позе) */
+  const windGeo = new THREE.BufferGeometry();
+  windGeo.setAttribute('position', new THREE.Float32BufferAttribute([
+    -.16, .2, -1.5,  -.16, .2, -1.95,
+     .02, .04, -1.62, .02, .04, -2.12,
+     .18, .15, -1.55, .18, .15, -1.9,
+  ], 3));
+  const windMat = new THREE.LineBasicMaterial({ color: 0x4b2f1d, transparent: true, opacity: 0 });
+  craft.add(new THREE.LineSegments(windGeo, windMat));
+
+  /* ── дуга захода на парковку: финальный вектор — вверх-вправо,
+     ровно в направление носа в позе логотипа ── */
+  const flight = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, .5, 0),
+    new THREE.Vector3(-1.6, .78, .5),
+    new THREE.Vector3(-2.1, -.42, .3),
+    new THREE.Vector3(-.75, -.62, -.1),
+    new THREE.Vector3(0, 0, 0),
+  ], false, 'catmullrom', .5);
+
   const TRAIL_N = 72;
-  const trailArr = new Float32Array(TRAIL_N * 3);
-  const tv = new THREE.Vector3();
-  for (let i = 0; i < TRAIL_N; i++) {
-    swoopPos(i / (TRAIL_N - 1), tv);
-    trailArr.set([tv.x, tv.y, tv.z], i * 3);
-  }
   const trailGeo = new THREE.BufferGeometry();
-  trailGeo.setAttribute('position', new THREE.BufferAttribute(trailArr, 3));
+  trailGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(TRAIL_N * 3), 3));
+  {
+    const ta = trailGeo.getAttribute('position');
+    const tv = new THREE.Vector3();
+    for (let i = 0; i < TRAIL_N; i++) {
+      flight.getPoint(i / (TRAIL_N - 1), tv);
+      ta.setXYZ(i, tv.x, tv.y, tv.z);
+    }
+  }
   trailGeo.setDrawRange(0, 0);
   const trailMat = new THREE.PointsMaterial({
     size: .085, map: makeDot('rgba(163,35,24,1)'), color: 0xffffff,
     transparent: true, opacity: .8, depthWrite: false, alphaTest: .1, sizeAttenuation: true,
   });
-  world.add(new THREE.Points(trailGeo, trailMat));
+  pose.add(new THREE.Points(trailGeo, trailMat));
 
-  /* ── сеть-набросок вокруг ── */
+  /* ── нейросеть-набросок вокруг ── */
   const shell = new THREE.Group();
   world.add(shell);
-
   const NP = 110, SR = 3.1;
   const pts = new Float32Array(NP * 3);
   const vecs = [];
@@ -278,7 +400,7 @@ function init(canvas) {
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     if (w > 1020) {
-      world.position.set(2.6, 0, 0);
+      world.position.set(2.2, 0, 0);
       world.scale.setScalar(1);
     } else {
       world.position.set(0, 1.15, 0);
@@ -315,15 +437,34 @@ function init(canvas) {
 
   const raycaster = new THREE.Raycaster();
 
+  /* ── поза логотипа Telegram (подобрана визуально): нос вверх-вправо,
+     видны верхняя плоскость и киль; движения — минимальные ── */
+  const IDLE_E = new THREE.Euler(-.15, 1.05, .45);
+  const eTmp = new THREE.Euler();
+  const idleP = new THREE.Vector3();
+  const idleQ = new THREE.Quaternion();
+  function idlePose(t) {
+    idleP.set(Math.sin(t * .33) * .05, Math.sin(t * .7) * .08, 0);
+    eTmp.set(
+      IDLE_E.x + Math.sin(t * .5) * .035 + mouse.y * .07,
+      IDLE_E.y + Math.sin(t * .28) * .05 + mouse.x * .1,
+      IDLE_E.z + Math.sin(t * .6) * .03 + mouse.x * .05
+    );
+    idleQ.setFromEuler(eTmp);
+  }
+
   /* ── таймлайн интро ── */
-  const DRIFT = .75, FOLD_AT = .6, FOLD_DUR = 1.2, SWOOP_AT = 1.95, SWOOP_DUR = 1.55;
+  const DRIFT = .85;
+  const FOLD1_AT = .8, FOLD1_DUR = .8;
+  const FOLD2_AT = 1.5, FOLD2_DUR = .85;
+  const SWOOP_AT = 2.5, SWOOP_DUR = 1.8;
   const DONE = SWOOP_AT + SWOOP_DUR;
 
   let phase = 0;            /* 0 ждём · 1 интро · 2 idle */
   let started = false;
-  let animK = 0;            /* время копится только в отрисованных кадрах */
+  let animK = 0;            /* копится только в отрисованных кадрах */
   let prevT = 0;
-  let rollT = -10;          /* бочка по наведению */
+  let rollT = -10;
   const clock = new THREE.Clock();
 
   const qPath = new THREE.Quaternion();
@@ -333,13 +474,12 @@ function init(canvas) {
   const dummy = new THREE.Object3D();
   const pNow = new THREE.Vector3();
   const pNext = new THREE.Vector3();
-  const zAxis = new THREE.Vector3(0, 0, 1);
-  const IDLE_E = new THREE.Euler(.42, -.95, -.12);
-  const qIdle = new THREE.Quaternion().setFromEuler(IDLE_E);
 
   function finishInstantly() {
-    writeFold(FOLD_A, FOLD_B);
-    craft.position.set(0, 0, 0);
+    setFold(FOLD_A, FOLD_B);
+    idlePose(0);
+    craft.position.copy(idleP);
+    craft.quaternion.copy(idleQ);
     pointsMat.opacity = .55;
     linesMat.opacity = .3;
     accMat.opacity = .9;
@@ -356,16 +496,11 @@ function init(canvas) {
   addEventListener('nv:intro', startIntro);
   setTimeout(startIntro, 8000);
 
-  /* стартовая поза: лист высоко, лицом к зрителю */
+  /* стартовая поза: заготовка высоко, почти плашмя к зрителю */
   craft.position.set(0, 3.1, 0);
-  craft.rotation.set(1.0, .3, 0);
+  craft.rotation.set(1.0, .35, 0);
 
-  renderer.setAnimationLoop(() => {
-    if (!inView || document.hidden) return;
-    const t = clock.getElapsedTime();
-    const dt = Math.min(t - prevT, .066);
-    prevT = t;
-
+  function tick(dt, t) {
     mouse.x += (mouse.tx - mouse.x) * .045;
     mouse.y += (mouse.ty - mouse.y) * .045;
 
@@ -373,94 +508,88 @@ function init(canvas) {
       animK += dt;
       const k = animK;
 
-      /* лист опускается, покачиваясь, как падающая бумага */
-      const drop = outCubic(clamp01(k / DRIFT));
-      craft.position.set(0, 3.1 - 2.55 * drop, 0);
-      craft.rotation.set(1.0 - .35 * drop, .3 + .5 * drop, Math.sin(k * 2.4) * .16 * (1 - drop * .5));
-
-      /* складывание: киль, затем крылья */
-      const fk = clamp01((k - FOLD_AT) / FOLD_DUR);
-      if (fk > 0 && fk < 1.001) {
-        const A = FOLD_A * smooth(clamp01(fk / .58));
-        const B = FOLD_B * smooth(clamp01((fk - .42) / .58));
-        writeFold(A, B);
+      if (k < SWOOP_AT) {
+        /* заготовка опускается, тяжело покачиваясь (картон — не бумага),
+           и застывает в ракурсе, где складки читаются */
+        const drop = outCubic(clamp01(k / DRIFT));
+        craft.position.set(0, 3.1 - 2.6 * drop, 0);
+        craft.rotation.set(
+          1.0 - .3 * drop,
+          .35 + .17 * drop + Math.sin(k * .9) * .03,
+          Math.sin(k * 1.6) * .1 * (1 - drop * .75)
+        );
       }
 
-      /* петля с пунктирным следом */
+      /* сгиб 1 — корпус; сгиб 2 — крылья; лёгкая пружина на обоих */
+      const f1 = clamp01((k - FOLD1_AT) / FOLD1_DUR);
+      const f2 = clamp01((k - FOLD2_AT) / FOLD2_DUR);
+      setFold(FOLD_A * inOutBack(f1), FOLD_B * inOutBack(f2));
+
+      /* заход на парковку */
       const sk = clamp01((k - SWOOP_AT) / SWOOP_DUR);
       if (sk > 0) {
         if (!qFromSet) { qFrom.copy(craft.quaternion); qFromSet = true; }
         const u = inOutCubic(sk);
-        swoopPos(u, pNow);
-        swoopPos(Math.min(u + .012, 1), pNext);
-        craft.position.copy(pNow);
-        if (pNext.distanceToSquared(pNow) > 1e-8) {
+        flight.getPoint(u, pNow);
+        flight.getPoint(Math.min(u + .012, 1), pNext);
+        if (pNext.distanceToSquared(pNow) > 1e-9) {
           dummy.position.copy(pNow);
           dummy.lookAt(pNext);
           qPath.copy(dummy.quaternion);
-          /* крен в вираже, затухает к посадке */
-          qRoll.setFromAxisAngle(zAxis, -.85 * Math.sin(Math.PI * u));
+          qRoll.setFromAxisAngle(zAxis, -.42 * Math.sin(Math.PI * u));
           qPath.multiply(qRoll);
         }
-        /* разгон: ориентация листа плавно перетекает в полётную */
-        const blendIn = smooth(clamp01(u / .16));
+        const blendIn = smooth(clamp01(u / .14));
         if (blendIn < 1) qPath.slerp(qFrom, 1 - blendIn);
-        /* к концу петли ориентация перетекает в парковочную */
-        qPath.slerp(qIdle, smooth(clamp01((u - .72) / .28)));
+        /* последние 30% — плавно в живую idle-позу (ноль дёрганья) */
+        idlePose(t);
+        const w = smooth(clamp01((u - .7) / .3));
+        craft.position.lerpVectors(pNow, idleP, w);
+        qPath.slerp(idleQ, w);
         craft.quaternion.copy(qPath);
         trailGeo.setDrawRange(0, Math.floor(u * TRAIL_N));
       }
 
-      /* сеть проявляется во время петли */
+      /* сеть проявляется во время захода */
       const o = clamp01((k - SWOOP_AT - .3) / .9);
       pointsMat.opacity = .55 * o;
       linesMat.opacity = .3 * o;
       accMat.opacity = .9 * o;
 
       if (k >= DONE) {
-        writeFold(FOLD_A, FOLD_B);
-        craft.position.set(0, 0, 0);
+        setFold(FOLD_A, FOLD_B);
         phase = 2;
       }
     } else if (phase === 2) {
-      /* след дотаивает */
-      if (trailMat.opacity > .01) trailMat.opacity -= dt * .9;
+      if (trailMat.opacity > .01) trailMat.opacity -= dt * .7;
       else trailGeo.setDrawRange(0, 0);
 
-      /* бочка по наведению на самолётик */
       if (rayDirty) {
         rayDirty = false;
         raycaster.setFromCamera(ndc, camera);
-        if (t - rollT > 2.6 && raycaster.intersectObject(plane, false).length) {
+        if (t - rollT > 2.6 && raycaster.intersectObjects([R.wing, L.wing], false).length) {
           rollT = t;
         }
       }
-      let roll = 0;
-      const rp = (t - rollT) / .95;
-      if (rp >= 0 && rp <= 1) roll = Math.PI * 2 * inOutCubic(rp);
 
-      /* парение: лёгкий бобинг, нос подруливает за курсором */
-      craft.position.set(
-        Math.sin(t * .4) * .12,
-        Math.sin(t * .8) * .11,
-        0
-      );
-      craft.rotation.set(
-        IDLE_E.x + Math.sin(t * .5) * .06 + mouse.y * .22,
-        IDLE_E.y + Math.sin(t * .3) * .18 + mouse.x * .4,
-        Math.sin(t * .65) * .08 + mouse.x * .28
-      );
-      if (roll) craft.rotateZ(roll);
+      idlePose(t);
+      craft.position.copy(idleP);
+      craft.quaternion.copy(idleQ);
+
+      /* бочка по наведению — единственный «трюк» в idle */
+      const rp = (t - rollT) / .95;
+      if (rp >= 0 && rp <= 1) craft.rotateZ(Math.PI * 2 * inOutCubic(rp));
+
+      /* комикс-штрихи ветра за хвостом дышат */
+      windMat.opacity = .16 + Math.sin(t * 1.7) * .12;
     }
 
     shell.rotation.y = -t * .05 + mouse.x * .12;
     shell.rotation.x = mouse.y * .08;
 
-    world.rotation.z = scrollT * -.18;
-    world.rotation.y = scrollT * .9;
+    world.rotation.z = scrollT * -.12;
     camera.position.z = 9 + scrollT * 1.4;
 
-    /* self-heal после вырожденного ресайза панели */
     const cw = canvas.clientWidth, ch = canvas.clientHeight;
     if (cw > 1 && ch > 1 &&
         (canvas.width !== Math.round(cw * DPR) || canvas.height !== Math.round(ch * DPR))) {
@@ -468,5 +597,38 @@ function init(canvas) {
     }
 
     renderer.render(scene, camera);
+  }
+
+  renderer.setAnimationLoop(() => {
+    if (!inView || document.hidden) return;
+    const t = clock.getElapsedTime();
+    const dt = Math.min(t - prevT, .066);
+    prevT = t;
+    tick(dt, t);
   });
+
+  /* dev-хук: скраб таймлайна для визуальной проверки кадров */
+  window.__nv = {
+    scrub(k) {
+      started = true; phase = 1; animK = 0; qFromSet = false;
+      trailGeo.setDrawRange(0, 0);
+      setFold(0, 0);
+      craft.position.set(0, 3.1, 0);
+      craft.rotation.set(1.0, .35, 0);
+      /* прогоняем таймлайн мелкими шагами до k — состояние честное */
+      const step = .03;
+      for (let x = 0; x < k; x += step) tick(step, x);
+      return renderer.domElement.toDataURL('image/png');
+    },
+    park() {
+      finishInstantly();
+      tick(0, 0);
+      return renderer.domElement.toDataURL('image/png');
+    },
+    setPose(x, y, z, tilt) {
+      IDLE_E.set(x, y, z);
+      if (tilt !== undefined) pose.rotation.z = tilt;
+      return this.park();
+    },
+  };
 }
