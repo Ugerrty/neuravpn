@@ -91,9 +91,9 @@ function init(canvas) {
     c.width = c.height = 512;
     const g = c.getContext('2d');
     const base = g.createLinearGradient(0, 0, 512, 512);
-    base.addColorStop(0, '#c9a26c');
-    base.addColorStop(.5, '#bd9660');
-    base.addColorStop(1, '#b28a55');
+    base.addColorStop(0, '#ab7f4d');
+    base.addColorStop(.5, '#9e7443');
+    base.addColorStop(1, '#916a3c');
     g.fillStyle = base;
     g.fillRect(0, 0, 512, 512);
 
@@ -138,22 +138,6 @@ function init(canvas) {
       g.lineWidth = 1.1;
       g.beginPath(); g.moveTo(a[0] + 2, a[1] + 1); g.lineTo(b[0] + 2, b[1] + 1); g.stroke();
     }
-    /* красный нос — как окунули в краску, с неровной кромкой */
-    const [nx, ny] = nPx;
-    g.fillStyle = '#a83a28';
-    g.beginPath();
-    for (let a = 0; a <= Math.PI * 2 + .01; a += Math.PI / 24) {
-      const r = 82 * (1 + Math.sin(a * 7 + 1) * .06 + Math.sin(a * 3 + 2) * .05);
-      const px = nx + Math.cos(a) * r, py = ny + Math.sin(a) * r;
-      a === 0 ? g.moveTo(px, py) : g.lineTo(px, py);
-    }
-    g.closePath();
-    g.fill();
-    /* тёмный ободок засохшей краски */
-    g.strokeStyle = 'rgba(110,21,10,.5)';
-    g.lineWidth = 3;
-    g.stroke();
-
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
@@ -168,16 +152,16 @@ function init(canvas) {
     const c = document.createElement('canvas');
     c.width = 128; c.height = 64;
     const g = c.getContext('2d');
-    g.fillStyle = '#d3ab74';                    /* внутренность среза */
+    g.fillStyle = '#b0854f';                    /* внутренность среза */
     g.fillRect(0, 0, 128, 64);
     /* тень в глубине волны */
     for (let x = 0; x < 128; x++) {
       const s = Math.sin((x / 128) * Math.PI * 2);
-      g.fillStyle = `rgba(122,85,48,${.14 + .1 * s})`;
+      g.fillStyle = `rgba(100,66,34,${.16 + .11 * s})`;
       g.fillRect(x, 10, 1, 44);
     }
     /* сама гофра — жирная волна */
-    g.strokeStyle = '#8a6038';
+    g.strokeStyle = '#6f4c2a';
     g.lineWidth = 7;
     g.beginPath();
     for (let x = -4; x <= 132; x += 2) {
@@ -185,7 +169,7 @@ function init(canvas) {
       x === -4 ? g.moveTo(x, y) : g.lineTo(x, y);
     }
     g.stroke();
-    g.strokeStyle = 'rgba(240,214,168,.55)';    /* блик на волне */
+    g.strokeStyle = 'rgba(222,190,142,.5)';     /* блик на волне */
     g.lineWidth = 2.2;
     g.beginPath();
     for (let x = -4; x <= 132; x += 2) {
@@ -194,10 +178,10 @@ function init(canvas) {
     }
     g.stroke();
     /* кромки лайнеров сверху и снизу среза */
-    g.fillStyle = '#9a7040';
+    g.fillStyle = '#7f5a33';
     g.fillRect(0, 0, 128, 7);
     g.fillRect(0, 57, 128, 7);
-    g.fillStyle = 'rgba(255,238,200,.35)';
+    g.fillStyle = 'rgba(238,212,168,.3)';
     g.fillRect(0, 7, 128, 1.5);
     g.fillRect(0, 55.5, 128, 1.5);
     const tex = new THREE.CanvasTexture(c);
@@ -297,10 +281,12 @@ function init(canvas) {
   const FOLD_B = 1.12;    /* крылья обратно, лёгкий диэдр */
   const qTmp = new THREE.Quaternion();
   function setFold(a, b) {
-    R.bodyHinge.rotation.z = -a;
-    L.bodyHinge.rotation.z = a;
-    R.wingHinge.quaternion.copy(R.qAlign).multiply(qTmp.setFromAxisAngle(zAxis, -b));
-    L.wingHinge.quaternion.copy(L.qAlign).multiply(qTmp.setFromAxisAngle(zAxis, b));
+    /* корпус ВВЕРХ от нижнего гребня-киля, крылья — вниз от верхних
+       биговок: киль висит под крыльями, как у настоящего дротика */
+    R.bodyHinge.rotation.z = a;
+    L.bodyHinge.rotation.z = -a;
+    R.wingHinge.quaternion.copy(R.qAlign).multiply(qTmp.setFromAxisAngle(zAxis, b));
+    L.wingHinge.quaternion.copy(L.qAlign).multiply(qTmp.setFromAxisAngle(zAxis, -b));
   }
   setFold(0, 0);
 
@@ -439,7 +425,7 @@ function init(canvas) {
 
   /* ── поза логотипа Telegram (подобрана визуально): нос вверх-вправо,
      видны верхняя плоскость и киль; движения — минимальные ── */
-  const IDLE_E = new THREE.Euler(-.15, 1.05, .45);
+  const IDLE_E = new THREE.Euler(-.15, 1.05, .1);
   const eTmp = new THREE.Euler();
   const idleP = new THREE.Vector3();
   const idleQ = new THREE.Quaternion();
